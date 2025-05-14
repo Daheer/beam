@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/beam_blob.dart';
 import '../widgets/nearby_professional_card.dart';
 import '../services/user_service.dart';
+import '../services/call_service.dart';
 import 'all_professionals_page.dart';
 import 'user_profile_page.dart';
+import 'voice_call_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,16 +18,94 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final _userService = UserService();
+  final _callService = CallService();
   bool isBeaming = false;
   bool _isLoading = true;
-  final UserService _userService = UserService();
   List<Map<String, dynamic>> professionals = [];
+  StreamSubscription? _callSubscription;
 
   @override
   void initState() {
     super.initState();
     _loadUserStatus();
     _loadNearbyUsers();
+    _listenForIncomingCalls();
+  }
+
+  @override
+  void dispose() {
+    _callSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _listenForIncomingCalls() {
+    _callSubscription = _callService.listenForCalls().listen(
+      (snapshot) {
+        if (!mounted) return;
+
+        for (var doc in snapshot.docs) {
+          final callData = doc.data() as Map<String, dynamic>;
+          final status = callData['status'] as String;
+          final channelName = callData['channelName'] as String;
+          final callerId = callData['callerId'] as String;
+          final callerName =
+              callData['callerName'] as String? ?? 'Unknown Caller';
+
+          if (status == CallStatus.calling.toString()) {
+            _showIncomingCallDialog(channelName, callerId, callerName);
+          }
+        }
+      },
+      onError: (error) {
+        debugPrint('Error listening for calls: $error');
+      },
+    );
+  }
+
+  void _showIncomingCallDialog(
+    String channelName,
+    String callerId,
+    String callerName,
+  ) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Incoming Call'),
+            content: Text('$callerName is calling you'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _callService.updateCallStatus(
+                    channelName,
+                    CallStatus.rejected,
+                  );
+                },
+                child: const Text('Reject'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (context) => VoiceCallPage(
+                            channelName: channelName,
+                            isIncoming: true,
+                            remoteUserId: callerId,
+                          ),
+                    ),
+                  );
+                },
+                child: const Text('Accept'),
+              ),
+            ],
+          ),
+    );
   }
 
   Future<void> _loadUserStatus() async {

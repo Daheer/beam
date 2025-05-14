@@ -34,6 +34,8 @@
 	<string>This app needs access to your location to find and connect with professionals near you.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>This app needs access to your location to find nearby professionals and networking opportunities.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>We need access to your microphone for voice calls</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

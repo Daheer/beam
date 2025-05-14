@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import '../pages/voice_call_page.dart';
+import '../services/call_service.dart';
 
 class ProfessionalProfile extends StatefulWidget {
   final Map<String, dynamic> professional;
@@ -14,32 +18,169 @@ class ProfessionalProfile extends StatefulWidget {
 class _ProfessionalProfileState extends State<ProfessionalProfile> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final CallService _callService = CallService();
   bool _isConnecting = false;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  Future<bool> _handleMicrophonePermission() async {
+    try {
+      debugPrint('Checking microphone permission using multiple methods...');
+
+      // Try creating an Agora engine instance to check permissions
+      final RtcEngine engine = createAgoraRtcEngine();
+      await engine.initialize(
+        const RtcEngineContext(
+          appId: "88c37957d22a4576a441b90c70e02608",
+          channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
+        ),
+      );
+
+      // Enable audio - this will trigger the permission request if needed
+      await engine.enableAudio();
+      debugPrint('Agora engine initialized and audio enabled successfully');
+
+      // If we got here, the permission must be granted
+      await engine.release();
+      return true;
+    } catch (e) {
+      debugPrint('Error during Agora permission check: $e');
+
+      // If Agora check failed, try system permission
+      final status = await Permission.microphone.status;
+      debugPrint('System permission status: $status');
+
+      if (status.isGranted) return true;
+
+      // Show settings dialog
+      if (!mounted) return false;
+      final bool openSettings =
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder:
+                (context) => AlertDialog(
+                  title: const Text('Microphone Access Required'),
+                  content: const Text(
+                    'Please ensure microphone access is enabled in both system settings and app permissions for voice calls to work.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Open Settings'),
+                    ),
+                  ],
+                ),
+          ) ??
+          false;
+
+      if (openSettings) {
+        await openAppSettings();
+        // Wait for user to potentially change settings
+        await Future.delayed(const Duration(seconds: 1));
+        return Permission.microphone.status.then((status) => status.isGranted);
+      }
+
+      return false;
+    }
+  }
 
   void _connectWithProfessional() async {
     if (_auth.currentUser == null) return;
+
+    // Show action selection dialog
+    if (!mounted) return;
+    final action = await showDialog<String>(
+      context: context,
+      builder:
+          (BuildContext context) => AlertDialog(
+            title: const Text('Connect'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'How would you like to connect with ${widget.professional['name']}?',
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: const Icon(Icons.message_outlined),
+                  title: const Text('Send Message'),
+                  onTap: () => Navigator.pop(context, 'message'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.call_outlined),
+                  title: const Text('Voice Call'),
+                  onTap: () => Navigator.pop(context, 'call'),
+                ),
+              ],
+            ),
+          ),
+    );
+
+    if (action == null) return;
 
     setState(() {
       _isConnecting = true;
     });
 
     try {
-      // In a real app, you might create a connection/chat between users
-      // For now, let's just show a success message
-      await Future.delayed(const Duration(seconds: 1));
+      if (action == 'call') {
+        debugPrint('Voice call selected, checking permissions...');
+        final hasPermission = await _handleMicrophonePermission();
 
+        if (!hasPermission) {
+          throw Exception('Microphone permission is required for voice calls');
+        }
+
+        debugPrint('Permission granted, initiating call...');
+        final channelName = await _callService.initiateCall(
+          widget.professional['id'],
+        );
+
+        if (channelName == null) {
+          throw Exception('Failed to initiate call');
+        }
+
+        if (mounted) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (context) => VoiceCallPage(
+                    channelName: channelName,
+                    isIncoming: false,
+                    remoteUserId: widget.professional['id'],
+                  ),
+            ),
+          );
+        }
+      } else {
+        // Handle message connection
+        await Future.delayed(const Duration(seconds: 1));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Connected with ${widget.professional['name']}'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error during connection: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Connected with ${widget.professional['name']}'),
+            content: Text('Failed to connect: $e'),
+            backgroundColor: Colors.red,
           ),
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to connect: $e')));
       }
     } finally {
       if (mounted) {

@@ -1,0 +1,176 @@
+import 'dart:async';
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'agora_token_service.dart';
+
+class AgoraService {
+  static final AgoraService _singleton = AgoraService._internal();
+  factory AgoraService() => _singleton;
+  AgoraService._internal();
+
+  late final RtcEngine _engine;
+  int? _remoteUid;
+  bool _isInitialized = false;
+  final _onRemoteUserJoinedController = StreamController<int>.broadcast();
+  final _onRemoteUserLeftController = StreamController<int>.broadcast();
+
+  Stream<int> get onRemoteUserJoined => _onRemoteUserJoinedController.stream;
+  Stream<int> get onRemoteUserLeft => _onRemoteUserLeftController.stream;
+
+  // Initialize the Agora engine
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+
+    try {
+      // Load environment variables
+      await dotenv.load();
+      final appId = dotenv.env['AGORA_APP_ID'];
+      if (appId == null) {
+        throw Exception('AGORA_APP_ID not found in environment variables');
+      }
+
+      debugPrint('Initializing Agora with App ID: $appId');
+
+      // Create and initialize the engine
+      _engine = createAgoraRtcEngine();
+      await _engine.initialize(
+        RtcEngineContext(
+          appId: appId,
+          channelProfile: ChannelProfileType.channelProfileCommunication,
+        ),
+      );
+
+      // Enable audio
+      await _engine.enableAudio();
+      await _engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
+      await _engine.setAudioProfile(
+        profile: AudioProfileType.audioProfileMusicHighQuality,
+        scenario: AudioScenarioType.audioScenarioChatroom,
+      );
+
+      // Set up event handlers
+      _setupEventHandlers();
+      _isInitialized = true;
+    } catch (e) {
+      debugPrint('Error initializing Agora: $e');
+      rethrow;
+    }
+  }
+
+  // Set up event handlers for the Agora engine
+  void _setupEventHandlers() {
+    _engine.registerEventHandler(
+      RtcEngineEventHandler(
+        onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
+          debugPrint("Local user ${connection.localUid} joined");
+        },
+        onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
+          debugPrint("Remote user $remoteUid joined");
+          _remoteUid = remoteUid;
+          _onRemoteUserJoinedController.add(remoteUid);
+        },
+        onUserOffline: (
+          RtcConnection connection,
+          int remoteUid,
+          UserOfflineReasonType reason,
+        ) {
+          debugPrint("Remote user $remoteUid left due to $reason");
+          _remoteUid = null;
+          _onRemoteUserLeftController.add(remoteUid);
+        },
+        onError: (ErrorCodeType err, String msg) {
+          debugPrint("Agora error: $err - $msg");
+        },
+        onConnectionStateChanged: (
+          RtcConnection connection,
+          ConnectionStateType state,
+          ConnectionChangedReasonType reason,
+        ) {
+          debugPrint("Connection state changed: $state, reason: $reason");
+        },
+        onTokenPrivilegeWillExpire: (RtcConnection connection, String token) {
+          debugPrint("Token will expire soon");
+          // Handle token refresh here if needed
+        },
+      ),
+    );
+  }
+
+  // Request necessary permissions
+  Future<bool> requestPermissions() async {
+    final status = await Permission.microphone.request();
+    debugPrint('Microphone permission status: $status');
+    return status.isGranted;
+  }
+
+  // Join a voice channel
+  Future<void> joinChannel(String channelName, [String? token]) async {
+    if (!_isInitialized) {
+      throw Exception('Agora Engine not initialized');
+    }
+
+    try {
+      // Get a token if not provided
+      final channelToken =
+          token ?? await AgoraTokenService.generateToken(channelName);
+      if (channelToken == null) {
+        throw Exception('Failed to generate Agora token');
+      }
+
+      debugPrint(
+        'Joining channel: $channelName with token length: ${channelToken.length}',
+      );
+
+      await _engine.joinChannel(
+        token: channelToken,
+        channelId: "beam-channel",
+        uid: 0,
+        options: const ChannelMediaOptions(
+          clientRoleType: ClientRoleType.clientRoleBroadcaster,
+          channelProfile: ChannelProfileType.channelProfileCommunication,
+          publishMicrophoneTrack: true,
+          autoSubscribeAudio: true,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error joining channel: $e');
+      rethrow;
+    }
+  }
+
+  // Leave the channel
+  Future<void> leaveChannel() async {
+    if (!_isInitialized) return;
+    try {
+      await _engine.leaveChannel();
+    } catch (e) {
+      debugPrint('Error leaving channel: $e');
+    }
+  }
+
+  // Toggle microphone
+  Future<void> toggleMicrophone(bool enabled) async {
+    if (!_isInitialized) return;
+    try {
+      await _engine.muteLocalAudioStream(!enabled);
+    } catch (e) {
+      debugPrint('Error toggling microphone: $e');
+    }
+  }
+
+  // Clean up resources
+  Future<void> dispose() async {
+    if (!_isInitialized) return;
+    try {
+      await _engine.leaveChannel();
+      await _engine.release();
+      _isInitialized = false;
+      await _onRemoteUserJoinedController.close();
+      await _onRemoteUserLeftController.close();
+    } catch (e) {
+      debugPrint('Error disposing Agora service: $e');
+    }
+  }
+}
