@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'pages/login_page.dart';
 import 'pages/home_page.dart';
 import 'pages/email_verification_page.dart';
@@ -12,6 +13,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(); // Load .env file
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Initialize WebRTC permission handling
+  if (WebRTC.platformIsAndroid || WebRTC.platformIsIOS) {
+    await WebRTC.initialize();
+  }
+
   runApp(const MyApp());
 }
 

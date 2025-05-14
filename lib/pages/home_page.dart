@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/beam_blob.dart';
 import '../widgets/nearby_professional_card.dart';
 import '../services/user_service.dart';
+import '../services/call_service.dart';
 import 'all_professionals_page.dart';
 import 'user_profile_page.dart';
 
@@ -18,6 +19,7 @@ class _HomePageState extends State<HomePage> {
   bool isBeaming = false;
   bool _isLoading = true;
   final UserService _userService = UserService();
+  final CallService _callService = CallService();
   List<Map<String, dynamic>> professionals = [];
 
   @override
@@ -25,12 +27,25 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _loadUserStatus();
     _loadNearbyUsers();
+
+    // Initialize call listener for incoming calls
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _callService.initCallListener(context);
+    });
+  }
+
+  @override
+  void dispose() {
+    // Clean up call service
+    _callService.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserStatus() async {
     try {
       final userData = await _userService.getCurrentUserData();
       if (userData != null && userData.containsKey('isBeaming')) {
+        if (!mounted) return;
         setState(() {
           isBeaming = userData['isBeaming'] as bool;
         });
@@ -41,6 +56,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _toggleBeamingStatus() async {
+    if (!mounted) return;
+
     setState(() {
       isBeaming = !isBeaming;
     });
@@ -70,6 +87,8 @@ class _HomePageState extends State<HomePage> {
         }
       } else {
         // Revert the state if the update failed
+        if (!mounted) return;
+
         setState(() {
           isBeaming = !isBeaming;
         });
@@ -83,6 +102,8 @@ class _HomePageState extends State<HomePage> {
     } catch (e) {
       print('Error updating beam status: $e');
       // Revert the state if the update failed
+      if (!mounted) return;
+
       setState(() {
         isBeaming = !isBeaming;
       });
@@ -96,6 +117,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadNearbyUsers() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
     });
@@ -107,15 +130,19 @@ class _HomePageState extends State<HomePage> {
       // Then fetch nearby users
       final nearbyUsers = await _userService.getNearbyUsers(radiusInKm: 100.0);
 
+      if (!mounted) return;
+
       setState(() {
         professionals = nearbyUsers;
         _isLoading = false;
       });
     } catch (e) {
       print('Error loading nearby users: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

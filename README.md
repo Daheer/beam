@@ -15,7 +15,7 @@ Beam is a location-based professional networking application built with Flutter 
 - **Professional Profiles**: View detailed profiles of nearby professionals including skills, bio, and contact information
 - **Real-time Updates**: Get real-time updates on nearby professionals as they come in range
 - **User Authentication**: Secure email verification system ensures authentic connections
-- **WebRTC Video Calling**: Connect with professionals through high-quality video calls
+- **WebRTC Audio Calling**: Connect with professionals through high-quality audio calls
 - **Cross-Platform**: Runs on iOS, Android, and web platforms
 
 ## Screenshots
@@ -33,7 +33,28 @@ Beam is a location-based professional networking application built with Flutter 
   - Firestore Database
   - Firebase Storage
 - **Location Services**: Geolocator
-- **Video Calling**: WebRTC with Firebase as signaling server
+- **Audio Calling**: WebRTC with Firebase Firestore as signaling server
+
+## WebRTC Audio Calling
+
+The app features a peer-to-peer audio calling system built with WebRTC:
+
+- **Signaling Server**: Firebase Firestore is used for exchanging WebRTC signaling data (SDP offers/answers and ICE candidates)
+- **Call Collection**: Calls are stored in a 'calls' Firestore collection with caller/callee information
+- **Audio-Only Mode**: Optimized for voice communication with microphone access
+- **Call Controls**: 
+  - Mute/unmute functionality
+  - Speaker mode toggle
+  - Call duration tracking
+  - One-touch call ending
+
+### WebRTC Implementation
+
+The audio calling feature is implemented using the following core components:
+
+1. **SignalingService**: Manages WebRTC connections and signaling
+2. **AudioCallPage**: User interface for the active call
+3. **Professional Profile**: Integration point for initiating calls
 
 ## Getting Started
 
@@ -79,13 +100,14 @@ Beam is a location-based professional networking application built with Flutter 
 3. **Update Profile**: Complete your professional profile with skills and bio
 4. **Toggle Beam**: Activate the Beam feature to make yourself visible to nearby professionals
 5. **Discover**: Browse through a list of professionals near you
-6. **Connect**: View someone's profile and initiate a connection or video call
+6. **Connect**: View someone's profile and initiate a connection or audio call
 
 ## Permissions
 
 The app requires the following permissions:
 - **Location**: To find professionals near you
-- **Camera/Microphone**: For video calling functionality
+- **Microphone**: For audio calling functionality 
+- **Bluetooth**: For audio device selection during calls
 
 ## Contributing
 
@@ -99,4 +121,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Flutter Team for the amazing framework
 - Firebase for backend services
+- WebRTC for real-time communication capabilities
 - All contributors who have helped shape this project

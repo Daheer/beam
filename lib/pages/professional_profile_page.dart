@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'audio_call_page.dart';
 
 class ProfessionalProfile extends StatefulWidget {
   final Map<String, dynamic> professional;
@@ -48,6 +49,29 @@ class _ProfessionalProfileState extends State<ProfessionalProfile> {
         });
       }
     }
+  }
+
+  void _startAudioCall() {
+    // Ensure the professional has an ID
+    if (widget.professional['id'] == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot call this professional')),
+      );
+      return;
+    }
+
+    // Navigate to the audio call page
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => AudioCallPage(
+              professional: widget.professional,
+              isIncoming: false,
+              roomId: null, // This is an outgoing call, so no roomId yet
+            ),
+      ),
+    );
   }
 
   @override
@@ -263,37 +287,68 @@ class _ProfessionalProfileState extends State<ProfessionalProfile> {
                 ],
               ),
               padding: const EdgeInsets.all(24.0),
-              child: ElevatedButton(
-                onPressed: _isConnecting ? null : _connectWithProfessional,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child:
-                    _isConnecting
-                        ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(color: Colors.white),
-                        )
-                        : const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.connect_without_contact, size: 24),
-                            SizedBox(width: 8),
-                            Text(
-                              'Connect',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+              child: Row(
+                children: [
+                  // Call Button
+                  Expanded(
+                    flex: 1,
+                    child: ElevatedButton(
+                      onPressed: _startAudioCall,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            Theme.of(context).colorScheme.secondary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
+                      ),
+                      child: const Icon(Icons.call, size: 24),
+                    ),
+                  ),
+
+                  const SizedBox(width: 16),
+
+                  // Connect Button
+                  Expanded(
+                    flex: 3,
+                    child: ElevatedButton(
+                      onPressed:
+                          _isConnecting ? null : _connectWithProfessional,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child:
+                          _isConnecting
+                              ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                ),
+                              )
+                              : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.connect_without_contact, size: 24),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Connect',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
