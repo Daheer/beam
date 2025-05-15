@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:zego_uikit_prebuilt_call/zego_uikit_prebuilt_call.dart';
 
 class ProfessionalProfile extends StatefulWidget {
   final Map<String, dynamic> professional;
@@ -16,18 +18,63 @@ class _ProfessionalProfileState extends State<ProfessionalProfile> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   bool _isConnecting = false;
 
-  void _connectWithProfessional() async {
+  Future<bool> _handleMicrophonePermission() async {
+    final status = await Permission.microphone.request();
+    return status.isGranted;
+  }
+
+  void _showConnectOptions() async {
     if (_auth.currentUser == null) return;
 
-    setState(() {
-      _isConnecting = true;
-    });
+    // Show action selection dialog
+    if (!mounted) return;
+    final action = await showDialog<String>(
+      context: context,
+      builder:
+          (BuildContext context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Connect',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'How would you like to connect?',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Voice Call Button
+                      _buildCallButton(
+                        isVideoCall: false,
+                        icon: Icons.call_outlined,
+                        label: "Call",
+                      ),
+                      // Video Call Button
+                      _buildCallButton(
+                        isVideoCall: true,
+                        icon: Icons.videocam_outlined,
+                        label: "Video",
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
 
-    try {
-      // In a real app, you might create a connection/chat between users
-      // For now, let's just show a success message
-      await Future.delayed(const Duration(seconds: 1));
-
+    if (action == 'message') {
+      // Handle message connection
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -35,19 +82,57 @@ class _ProfessionalProfileState extends State<ProfessionalProfile> {
           ),
         );
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to connect: $e')));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isConnecting = false;
-        });
-      }
     }
+  }
+
+  Widget _buildCallButton({
+    required bool isVideoCall,
+    required IconData icon,
+    required String label,
+  }) {
+    return SizedBox(
+      width: 100,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 60,
+            height: 60,
+            child: ZegoSendCallInvitationButton(
+              isVideoCall: isVideoCall,
+              resourceID: "zegouikit_call",
+              invitees: [
+                ZegoUIKitUser(
+                  id: widget.professional['id'] ?? '',
+                  name: widget.professional['name'] ?? 'Unknown',
+                ),
+              ],
+              icon: ButtonIcon(
+                icon: Icon(icon, color: Colors.black, size: 28),
+                backgroundColor: Colors.grey.shade200,
+              ),
+              buttonSize: const Size(60, 60),
+              iconSize: const Size(60, 60),
+              text: "",
+              textStyle: const TextStyle(fontSize: 0),
+              onPressed: (
+                String code,
+                String message,
+                List<String> errorInvitees,
+              ) {
+                if (errorInvitees.isNotEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to call: $message')),
+                  );
+                }
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(fontSize: 14)),
+        ],
+      ),
+    );
   }
 
   @override
@@ -264,7 +349,7 @@ class _ProfessionalProfileState extends State<ProfessionalProfile> {
               ),
               padding: const EdgeInsets.all(24.0),
               child: ElevatedButton(
-                onPressed: _isConnecting ? null : _connectWithProfessional,
+                onPressed: _isConnecting ? null : _showConnectOptions,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
