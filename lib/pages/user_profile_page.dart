@@ -13,6 +13,7 @@ import 'dart:math';
 import '../pages/login_page.dart';
 import '../services/upload_service.dart';
 import '../services/user_service.dart';
+import '../services/snackbar_service.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -241,9 +242,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
         _controllers[field] = TextEditingController(text: _userData[field]);
       });
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error creating profile: $e')));
+      SnackbarService.showError(context, message: 'Error creating profile: $e');
     }
   }
 
@@ -278,11 +277,10 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   Future<void> _updateLocation() async {
     // Show loading indicator
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Updating your location...'),
-        duration: Duration(seconds: 1),
-      ),
+    SnackbarService.showInfo(
+      context,
+      message: 'Updating your location...',
+      duration: const Duration(seconds: 1),
     );
 
     try {
@@ -303,23 +301,23 @@ class _UserProfilePageState extends State<UserProfilePage> {
             _locationString = address;
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Location updated to: $address')),
+          SnackbarService.showSuccess(
+            context,
+            message: 'Location updated to: $address',
           );
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update location')),
+        SnackbarService.showError(
+          context,
+          message: 'Failed to update location',
         );
       }
     } catch (e) {
       print('Error updating location: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
+      SnackbarService.showError(
+        context,
+        message:
             'Failed to update location: ${e.toString().substring(0, min(e.toString().length, 50))}',
-          ),
-        ),
       );
     }
   }
@@ -437,29 +435,21 @@ class _UserProfilePageState extends State<UserProfilePage> {
             _userData['profileImageUrl'] = imageUrl;
           });
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Profile picture updated successfully'),
-            ),
+          SnackbarService.showSuccess(
+            context,
+            message: 'Profile picture updated successfully',
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to upload image'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          SnackbarService.showError(context, message: 'Failed to upload image');
         }
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to update profile picture: $e'),
-          backgroundColor: Colors.red,
-        ),
+      SnackbarService.showError(
+        context,
+        message: 'Failed to update profile picture: $e',
       );
     }
   }
@@ -625,9 +615,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error signing out: $e')));
+          SnackbarService.showError(context, message: 'Error signing out: $e');
         }
       }
     }
@@ -1114,15 +1102,14 @@ class _UserProfilePageState extends State<UserProfilePage> {
         _isEditing = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated successfully')),
+      SnackbarService.showSuccess(
+        context,
+        message: 'Profile updated successfully',
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to update profile: $e'),
-          backgroundColor: Colors.red,
-        ),
+      SnackbarService.showError(
+        context,
+        message: 'Failed to update profile: $e',
       );
     }
   }

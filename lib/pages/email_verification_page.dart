@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../services/snackbar_service.dart';
 import 'home_page.dart';
 import 'login_page.dart';
 
@@ -27,11 +28,10 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
     // Show initial verification message
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Verification email sent. Please check your inbox.'),
-            duration: Duration(seconds: 5),
-          ),
+        SnackbarService.showInfo(
+          context,
+          message: 'Verification email sent. Please check your inbox.',
+          duration: const Duration(seconds: 5),
         );
       }
     });
@@ -105,20 +105,16 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
         }
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Verification email sent. Please check your inbox.'),
-          duration: Duration(seconds: 3),
-          backgroundColor: Colors.green,
-        ),
+      SnackbarService.showSuccess(
+        context,
+        message: 'Verification email sent. Please check your inbox.',
+        duration: const Duration(seconds: 3),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error sending verification email: ${e.toString()}'),
-          duration: const Duration(seconds: 3),
-          backgroundColor: Colors.red,
-        ),
+      SnackbarService.showError(
+        context,
+        message: 'Error sending verification email: ${e.toString()}',
+        duration: const Duration(seconds: 3),
       );
     } finally {
       setState(() {

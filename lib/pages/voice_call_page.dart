@@ -4,6 +4,7 @@ import '../services/call_service.dart';
 import '../services/config.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/snackbar_service.dart';
 
 class VoiceCallPage extends StatefulWidget {
   final String channelName;
@@ -173,9 +174,7 @@ class _VoiceCallPageState extends State<VoiceCallPage> {
     await _agoraService.leaveChannel();
     if (mounted) {
       if (reason != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(reason), backgroundColor: Colors.orange),
-        );
+        SnackbarService.showWarning(context, message: reason);
       }
       Navigator.pop(context);
     }

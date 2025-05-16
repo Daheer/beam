@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:flutter/material.dart';
 import '../services/config.dart';
+import '../services/snackbar_service.dart';
 
 class UploadService {
   static final Dio _dio = Dio();
@@ -48,11 +49,9 @@ class UploadService {
     } catch (e) {
       // Only show error in context if provided
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error uploading image: $e'),
-            backgroundColor: Colors.red,
-          ),
+        SnackbarService.showError(
+          context,
+          message: 'Error uploading image: $e',
         );
       }
       return null;

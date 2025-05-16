@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'login_page.dart';
 import 'dart:io';
 import '../services/upload_service.dart';
+import '../services/snackbar_service.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -81,14 +82,10 @@ class _SignupPageState extends State<SignupPage> {
 
         // Show success message with verification instructions
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Verification email sent. Please check your inbox.',
-              ),
-              duration: Duration(seconds: 5),
-              backgroundColor: Colors.green,
-            ),
+          SnackbarService.showSuccess(
+            context,
+            message: 'Verification email sent. Please check your inbox.',
+            duration: const Duration(seconds: 5),
           );
         }
       }
@@ -107,11 +104,9 @@ class _SignupPageState extends State<SignupPage> {
 
       // Show error message
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error creating account: $e'),
-            backgroundColor: Colors.red,
-          ),
+        SnackbarService.showError(
+          context,
+          message: 'Error creating account: $e',
         );
       }
     }
@@ -180,11 +175,9 @@ class _SignupPageState extends State<SignupPage> {
 
       // Show error message
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error completing signup: $e'),
-            backgroundColor: Colors.red,
-          ),
+        SnackbarService.showError(
+          context,
+          message: 'Error completing signup: $e',
         );
       }
     }
@@ -205,9 +198,7 @@ class _SignupPageState extends State<SignupPage> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
+      SnackbarService.showError(context, message: 'Failed to pick image: $e');
     }
   }
 

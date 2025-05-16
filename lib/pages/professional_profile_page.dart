@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import '../pages/voice_call_page.dart';
 import '../services/call_service.dart';
+import '../services/snackbar_service.dart';
 
 class ProfessionalProfile extends StatefulWidget {
   final Map<String, dynamic> professional;
@@ -132,12 +133,7 @@ class _ProfessionalProfileState extends State<ProfessionalProfile> {
     } catch (e) {
       debugPrint('Error during connection: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to connect: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackbarService.showError(context, message: 'Failed to connect: $e');
       }
     } finally {
       if (mounted) {

@@ -10,6 +10,7 @@ import 'all_professionals_page.dart';
 import 'user_profile_page.dart';
 import 'voice_call_page.dart';
 import 'activity_history_page.dart';
+import '../services/snackbar_service.dart';
 
 // Call button widget for both incoming call dialog and call page
 class _CallButton extends StatelessWidget {
@@ -273,15 +274,13 @@ class _HomePageState extends State<HomePage> {
 
         // Show feedback to user
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
+          SnackbarService.showSuccess(
+            context,
+            message:
                 isBeaming
                     ? 'You are now visible to nearby professionals'
                     : 'You are now hidden from nearby professionals',
-              ),
-              duration: const Duration(seconds: 2),
-            ),
+            duration: const Duration(seconds: 2),
           );
         }
       } else {
@@ -291,8 +290,9 @@ class _HomePageState extends State<HomePage> {
         });
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update status')),
+          SnackbarService.showError(
+            context,
+            message: 'Failed to update status',
           );
         }
       }
@@ -304,9 +304,10 @@ class _HomePageState extends State<HomePage> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(
+        SnackbarService.showError(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to update status: $e')));
+          message: 'Failed to update status: $e',
+        );
       }
     }
   }
@@ -339,21 +340,24 @@ class _HomePageState extends State<HomePage> {
     try {
       final success = await _userService.updateUserLocation();
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Location updated successfully')),
+        SnackbarService.showSuccess(
+          context,
+          message: 'Location updated successfully',
         );
         _loadNearbyUsers();
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update location')),
+        SnackbarService.showError(
+          context,
+          message: 'Failed to update location',
         );
       }
     } catch (e) {
       print('Error refreshing location: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
+        SnackbarService.showError(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error updating location: $e')));
+          message: 'Error updating location: $e',
+        );
       }
     }
   }
@@ -464,12 +468,9 @@ class _HomePageState extends State<HomePage> {
                             );
                           } catch (e) {
                             print('Error navigating to AllProfessionals: $e');
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Error loading professionals list: $e',
-                                ),
-                              ),
+                            SnackbarService.showError(
+                              context,
+                              message: 'Error loading professionals list: $e',
                             );
                           }
                         },
