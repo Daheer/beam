@@ -10,7 +10,7 @@ class AgoraService {
   factory AgoraService() => _singleton;
   AgoraService._internal();
 
-  late final RtcEngine _engine;
+  RtcEngine? _engine;
   int? _remoteUid;
   bool _isInitialized = false;
   final _onRemoteUserJoinedController = StreamController<int>.broadcast();
@@ -21,7 +21,10 @@ class AgoraService {
 
   // Initialize the Agora engine
   Future<void> initialize() async {
-    if (_isInitialized) return;
+    if (_isInitialized) {
+      debugPrint('Agora engine already initialized');
+      return;
+    }
 
     try {
       // Load environment variables
@@ -35,7 +38,7 @@ class AgoraService {
 
       // Create and initialize the engine
       _engine = createAgoraRtcEngine();
-      await _engine.initialize(
+      await _engine?.initialize(
         RtcEngineContext(
           appId: appId,
           channelProfile: ChannelProfileType.channelProfileCommunication,
@@ -43,9 +46,9 @@ class AgoraService {
       );
 
       // Enable audio
-      await _engine.enableAudio();
-      await _engine.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
-      await _engine.setAudioProfile(
+      await _engine?.enableAudio();
+      await _engine?.setClientRole(role: ClientRoleType.clientRoleBroadcaster);
+      await _engine?.setAudioProfile(
         profile: AudioProfileType.audioProfileMusicHighQuality,
         scenario: AudioScenarioType.audioScenarioChatroom,
       );
@@ -55,13 +58,29 @@ class AgoraService {
       _isInitialized = true;
     } catch (e) {
       debugPrint('Error initializing Agora: $e');
+      await dispose(); // Clean up on error
       rethrow;
+    }
+  }
+
+  // Clean up resources
+  Future<void> dispose() async {
+    try {
+      if (_engine != null) {
+        await leaveChannel();
+        await _engine!.release();
+        _engine = null;
+      }
+      _isInitialized = false;
+      _remoteUid = null;
+    } catch (e) {
+      debugPrint('Error disposing Agora service: $e');
     }
   }
 
   // Set up event handlers for the Agora engine
   void _setupEventHandlers() {
-    _engine.registerEventHandler(
+    _engine?.registerEventHandler(
       RtcEngineEventHandler(
         onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
           debugPrint("Local user ${connection.localUid} joined");
@@ -106,27 +125,41 @@ class AgoraService {
   }
 
   // Join a voice channel
-  Future<void> joinChannel(String channelName, [String? token]) async {
-    if (!_isInitialized) {
+  Future<void> joinChannel(String channelName, {int uid = 0}) async {
+    if (!_isInitialized || _engine == null) {
       throw Exception('Agora Engine not initialized');
     }
 
     try {
+      print('Starting joinChannel process for channel: $channelName');
+
       // Get a token if not provided
-      final channelToken =
-          token ?? await AgoraTokenService.generateToken(channelName);
+      final channelToken = await AgoraTokenService.generateToken(
+        channelName,
+        uid.toString(),
+      );
+      print("Got token from service: $channelToken");
+
       if (channelToken == null) {
         throw Exception('Failed to generate Agora token');
       }
 
+      print('Channel Token length: ${channelToken.length}');
+      print('First 10 chars of token: ${channelToken.substring(0, 10)}...');
+
       debugPrint(
-        'Joining channel: $channelName with token length: ${channelToken.length}',
+        'Joining channel: $channelName with UID: $uid (0 means SDK will generate random UID)',
       );
 
-      await _engine.joinChannel(
+      // Ensure channel name is valid for Agora
+      if (channelName.isEmpty) {
+        throw Exception('Channel name cannot be empty');
+      }
+
+      await _engine?.joinChannel(
         token: channelToken,
-        channelId: "beam-channel",
-        uid: 0,
+        channelId: channelName,
+        uid: uid, // If 0, SDK will generate a random UID
         options: const ChannelMediaOptions(
           clientRoleType: ClientRoleType.clientRoleBroadcaster,
           channelProfile: ChannelProfileType.channelProfileCommunication,
@@ -134,6 +167,9 @@ class AgoraService {
           autoSubscribeAudio: true,
         ),
       );
+
+      print('Successfully joined channel: $channelName');
+      print('Connection state: ${_engine?.getConnectionState()}');
     } catch (e) {
       debugPrint('Error joining channel: $e');
       rethrow;
@@ -142,9 +178,9 @@ class AgoraService {
 
   // Leave the channel
   Future<void> leaveChannel() async {
-    if (!_isInitialized) return;
+    if (!_isInitialized || _engine == null) return;
     try {
-      await _engine.leaveChannel();
+      await _engine?.leaveChannel();
     } catch (e) {
       debugPrint('Error leaving channel: $e');
     }
@@ -152,25 +188,11 @@ class AgoraService {
 
   // Toggle microphone
   Future<void> toggleMicrophone(bool enabled) async {
-    if (!_isInitialized) return;
+    if (!_isInitialized || _engine == null) return;
     try {
-      await _engine.muteLocalAudioStream(!enabled);
+      await _engine?.muteLocalAudioStream(!enabled);
     } catch (e) {
       debugPrint('Error toggling microphone: $e');
-    }
-  }
-
-  // Clean up resources
-  Future<void> dispose() async {
-    if (!_isInitialized) return;
-    try {
-      await _engine.leaveChannel();
-      await _engine.release();
-      _isInitialized = false;
-      await _onRemoteUserJoinedController.close();
-      await _onRemoteUserLeftController.close();
-    } catch (e) {
-      debugPrint('Error disposing Agora service: $e');
     }
   }
 }

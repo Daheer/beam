@@ -95,82 +95,39 @@ class _ProfessionalProfileState extends State<ProfessionalProfile> {
   void _connectWithProfessional() async {
     if (_auth.currentUser == null) return;
 
-    // Show action selection dialog
-    if (!mounted) return;
-    final action = await showDialog<String>(
-      context: context,
-      builder:
-          (BuildContext context) => AlertDialog(
-            title: const Text('Connect'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'How would you like to connect with ${widget.professional['name']}?',
-                ),
-                const SizedBox(height: 20),
-                ListTile(
-                  leading: const Icon(Icons.message_outlined),
-                  title: const Text('Send Message'),
-                  onTap: () => Navigator.pop(context, 'message'),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.call_outlined),
-                  title: const Text('Voice Call'),
-                  onTap: () => Navigator.pop(context, 'call'),
-                ),
-              ],
-            ),
-          ),
-    );
-
-    if (action == null) return;
-
     setState(() {
       _isConnecting = true;
     });
 
     try {
-      if (action == 'call') {
-        debugPrint('Voice call selected, checking permissions...');
-        final hasPermission = await _handleMicrophonePermission();
+      debugPrint('Checking microphone permissions...');
+      final hasPermission = await _handleMicrophonePermission();
 
-        if (!hasPermission) {
-          throw Exception('Microphone permission is required for voice calls');
-        }
+      if (!hasPermission) {
+        throw Exception('Microphone permission is required for voice calls');
+      }
 
-        debugPrint('Permission granted, initiating call...');
-        final channelName = await _callService.initiateCall(
-          widget.professional['id'],
+      debugPrint('Permission granted, initiating call...');
+      final channelName = await _callService.initiateCall(
+        widget.professional['id'],
+      );
+
+      if (channelName == null) {
+        throw Exception('Failed to initiate call');
+      }
+
+      if (mounted) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder:
+                (context) => VoiceCallPage(
+                  channelName: channelName,
+                  isIncoming: false,
+                  remoteUserId: widget.professional['id'],
+                ),
+          ),
         );
-
-        if (channelName == null) {
-          throw Exception('Failed to initiate call');
-        }
-
-        if (mounted) {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (context) => VoiceCallPage(
-                    channelName: channelName,
-                    isIncoming: false,
-                    remoteUserId: widget.professional['id'],
-                  ),
-            ),
-          );
-        }
-      } else {
-        // Handle message connection
-        await Future.delayed(const Duration(seconds: 1));
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Connected with ${widget.professional['name']}'),
-            ),
-          );
-        }
       }
     } catch (e) {
       debugPrint('Error during connection: $e');

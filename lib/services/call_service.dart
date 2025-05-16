@@ -19,9 +19,8 @@ class CallService {
       final caller = _auth.currentUser;
       if (caller == null) return null;
 
-      // Generate a unique channel name
-      final channelName =
-          '${caller.uid}_${receiverId}_${DateTime.now().millisecondsSinceEpoch}';
+      // Generate a unique channel name using timestamp
+      final channelName = DateTime.now().millisecondsSinceEpoch.toString();
 
       // Create a call document
       await _firestore.collection('calls').doc(channelName).set({
@@ -31,6 +30,9 @@ class CallService {
         'status': CallStatus.calling.toString(),
         'timestamp': FieldValue.serverTimestamp(),
         'callerName': caller.displayName ?? 'Unknown Caller',
+        // We'll let Agora SDK generate the UIDs by passing 0
+        'callerAgoraUid': 0,
+        'receiverAgoraUid': 0,
       });
 
       return channelName;

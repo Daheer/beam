@@ -9,6 +9,41 @@ import '../services/call_service.dart';
 import 'all_professionals_page.dart';
 import 'user_profile_page.dart';
 import 'voice_call_page.dart';
+import 'activity_history_page.dart';
+
+// Call button widget for both incoming call dialog and call page
+class _CallButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final IconData icon;
+  final Color backgroundColor;
+  final Color iconColor;
+  final double size;
+
+  const _CallButton({
+    required this.onPressed,
+    required this.icon,
+    required this.backgroundColor,
+    required this.iconColor,
+    this.size = 55,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Material(
+        shape: const CircleBorder(),
+        color: backgroundColor,
+        child: InkWell(
+          onTap: onPressed,
+          customBorder: const CircleBorder(),
+          child: Icon(icon, color: iconColor, size: size * 0.5),
+        ),
+      ),
+    );
+  }
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -67,43 +102,143 @@ class _HomePageState extends State<HomePage> {
     String channelName,
     String callerId,
     String callerName,
-  ) {
+  ) async {
+    // Load caller information
+    String callerProfession = '';
+    String callerExperience = '';
+    try {
+      final callerDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(callerId)
+              .get();
+
+      if (callerDoc.exists) {
+        final userData = callerDoc.data()!;
+        callerProfession = userData['profession'] ?? '';
+        final experience = userData['experience']?.toString() ?? '0';
+        callerExperience = '$experience years';
+      }
+    } catch (e) {
+      debugPrint('Error loading caller info: $e');
+    }
+
+    if (!mounted) return;
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder:
-          (context) => AlertDialog(
-            title: const Text('Incoming Call'),
-            content: Text('$callerName is calling you'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _callService.updateCallStatus(
-                    channelName,
-                    CallStatus.rejected,
-                  );
-                },
-                child: const Text('Reject'),
+          (context) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(20),
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (context) => VoiceCallPage(
-                            channelName: channelName,
-                            isIncoming: true,
-                            remoteUserId: callerId,
-                          ),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Caller avatar/icon
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primaryContainer.withOpacity(0.3),
                     ),
-                  );
-                },
-                child: const Text('Accept'),
+                    child: Icon(
+                      Icons.phone_in_talk,
+                      size: 40,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // Incoming call text
+                  Text(
+                    'Incoming Call',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Caller name
+                  Text(
+                    callerName,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  if (callerProfession.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    // Profession
+                    Text(
+                      callerProfession,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                  if (callerExperience.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    // Experience
+                    Text(
+                      callerExperience,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  // Call controls
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Reject button
+                      _CallButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _callService.updateCallStatus(
+                            channelName,
+                            CallStatus.rejected,
+                          );
+                        },
+                        icon: Icons.call_end,
+                        backgroundColor: Theme.of(context).colorScheme.error,
+                        iconColor: Theme.of(context).colorScheme.onError,
+                      ),
+                      // Accept button
+                      _CallButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => VoiceCallPage(
+                                    channelName: channelName,
+                                    isIncoming: true,
+                                    remoteUserId: callerId,
+                                  ),
+                            ),
+                          );
+                        },
+                        icon: Icons.call,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        iconColor: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
     );
   }
@@ -232,8 +367,15 @@ class _HomePageState extends State<HomePage> {
         title: Text('Beam'),
         centerTitle: true,
         leading: IconButton(
-          onPressed: _refreshLocation,
-          icon: Icon(Icons.my_location),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ActivityHistoryPage(),
+              ),
+            );
+          },
+          icon: Icon(Icons.history),
           alignment: Alignment.topLeft,
           color: Theme.of(context).colorScheme.primary,
         ),

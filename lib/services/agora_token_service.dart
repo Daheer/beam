@@ -3,34 +3,47 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AgoraTokenService {
-  static Future<String?> generateToken(String channelName) async {
+  static Future<String?> generateToken(String channelName, String uid) async {
     try {
-      // Replace this URL with your token server URL
-      final tokenServerUrl = dotenv.env['AGORA_TOKEN_SERVER_URL'];
-      if (tokenServerUrl == null) {
-        // For testing, use a temporary token that you generate from Agora Console
-        return dotenv.env['AGORA_TEMP_TOKEN'];
+      final appwriteEndpoint = dotenv.env['APPWRITE_ENDPOINT'];
+      final functionId = dotenv.env['APPWRITE_FUNCTION_ID'];
+      final projectId = dotenv.env['APPWRITE_PROJECT_ID'];
+      final apiKey = dotenv.env['APPWRITE_API_KEY'];
+
+      if (appwriteEndpoint == null ||
+          functionId == null ||
+          projectId == null ||
+          apiKey == null) {
+        throw Exception('Missing Appwrite configuration');
       }
 
       final response = await http.post(
-        Uri.parse(tokenServerUrl),
-        body: {
-          'channelName': channelName,
-          'uid': '0', // Use 0 for the first user
-          'role': 'publisher',
+        Uri.parse(appwriteEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Appwrite-Project': projectId,
+          'X-Appwrite-Key': apiKey,
         },
+        body: jsonEncode({
+          'channelName': channelName,
+          'uid': uid,
+          'expireTime': 3600,
+        }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['token'];
+        final token = data['token'];
+        return token;
       }
 
-      return null;
+      // Fallback to temporary token for testing
+      return dotenv.env['AGORA_TOKEN'];
     } catch (e) {
       print('Error generating token: $e');
+      print('Stack trace: ${StackTrace.current}');
       // Fallback to temporary token for testing
-      return dotenv.env['AGORA_TEMP_TOKEN'];
+      return dotenv.env['AGORA_TOKEN'];
     }
   }
 }

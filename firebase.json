@@ -1,1 +1,48 @@
-{"firestore":{"rules":"firestore.rules","indexes":"firestore.indexes.json"},"storage":{"rules":"storage.rules"},"flutter":{"platforms":{"android":{"default":{"projectId":"beam-networking","appId":"1:623564999295:android:c035fa0544c2d8ac5f8d4a","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"beam-networking","appId":"1:623564999295:ios:55d48c14e0b22d6c5f8d4a","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"macos":{"default":{"projectId":"beam-networking","appId":"1:623564999295:ios:55d48c14e0b22d6c5f8d4a","uploadDebugSymbols":false,"fileOutput":"macos/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"beam-networking","configurations":{"android":"1:623564999295:android:c035fa0544c2d8ac5f8d4a","ios":"1:623564999295:ios:55d48c14e0b22d6c5f8d4a","macos":"1:623564999295:ios:55d48c14e0b22d6c5f8d4a","web":"1:623564999295:web:bedc1ca5b18590205f8d4a","windows":"1:623564999295:web:baa57f37583413ba5f8d4a"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "beam-networking",
+          "appId": "1:623564999295:android:c035fa0544c2d8ac5f8d4a",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "beam-networking",
+          "appId": "1:623564999295:ios:55d48c14e0b22d6c5f8d4a",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "beam-networking",
+          "appId": "1:623564999295:ios:55d48c14e0b22d6c5f8d4a",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "beam-networking",
+          "configurations": {
+            "android": "1:623564999295:android:c035fa0544c2d8ac5f8d4a",
+            "ios": "1:623564999295:ios:55d48c14e0b22d6c5f8d4a",
+            "macos": "1:623564999295:ios:55d48c14e0b22d6c5f8d4a",
+            "web": "1:623564999295:web:bedc1ca5b18590205f8d4a",
+            "windows": "1:623564999295:web:baa57f37583413ba5f8d4a"
+          }
+        }
+      }
+    }
+  }
+}
