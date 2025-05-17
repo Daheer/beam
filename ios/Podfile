@@ -29,6 +29,7 @@ flutter_ios_podfile_setup
 
 target 'Runner' do
   use_frameworks!
+  use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
@@ -50,6 +51,12 @@ post_install do |installer|
         ## dart: PermissionGroup.microphone
         'PERMISSION_MICROPHONE=1',
       ]
+      
+      # Enable arm64 for simulator builds (required for M1/M2 Macs)
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = ''
+      
+      # Set min iOS deployment version
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
     end
   end
 end

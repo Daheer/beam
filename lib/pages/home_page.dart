@@ -2,10 +2,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../widgets/beam_blob.dart';
 import '../widgets/nearby_professional_card.dart';
 import '../services/user_service.dart';
 import '../services/call_service.dart';
+import '../utils/notification_payload_handler.dart';
 import 'all_professionals_page.dart';
 import 'user_profile_page.dart';
 import 'voice_call_page.dart';
@@ -67,6 +69,7 @@ class _HomePageState extends State<HomePage> {
     _loadUserStatus();
     _loadNearbyUsers();
     _listenForIncomingCalls();
+    _checkForInitialMessage();
   }
 
   @override
@@ -359,6 +362,22 @@ class _HomePageState extends State<HomePage> {
           message: 'Error updating location: $e',
         );
       }
+    }
+  }
+
+  void _checkForInitialMessage() async {
+    try {
+      // Check if the app was opened from a notification
+      RemoteMessage? initialMessage =
+          await FirebaseMessaging.instance.getInitialMessage();
+
+      if (initialMessage != null && mounted) {
+        // Handle the initial message
+        handleNotificationPayload(context, initialMessage.data);
+      }
+    } catch (e) {
+      print('Error checking for initial notification message: $e');
+      // Continue without checking for initial message
     }
   }
 

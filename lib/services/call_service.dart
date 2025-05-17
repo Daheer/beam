@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'notification_service.dart';
 
 enum CallStatus { idle, calling, ringing, connected, ended, rejected, missed }
 
@@ -12,6 +13,7 @@ class CallService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final NotificationService _notificationService = NotificationService();
 
   // Create a call document in Firestore
   Future<String?> initiateCall(String receiverId) async {
@@ -34,6 +36,13 @@ class CallService {
         'callerAgoraUid': 0,
         'receiverAgoraUid': 0,
       });
+
+      // Send push notification to receiver
+      await _notificationService.sendCallNotification(
+        receiverId: receiverId,
+        callerName: caller.displayName ?? 'Unknown Caller',
+        channelName: channelName,
+      );
 
       return channelName;
     } catch (e) {

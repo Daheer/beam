@@ -6,9 +6,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:geolocator/geolocator.dart';
 import 'login_page.dart';
+import 'quiz_page.dart';
+import 'quiz_result_page.dart';
 import 'dart:io';
 import '../services/upload_service.dart';
 import '../services/snackbar_service.dart';
+import '../models/profession.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -44,7 +47,7 @@ class _SignupPageState extends State<SignupPage> {
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   int _currentPage = 0;
-  final int _totalPages = 4;
+  final int _totalPages = 5;
 
   @override
   void dispose() {
@@ -277,6 +280,66 @@ class _SignupPageState extends State<SignupPage> {
         curve: Curves.easeInOut,
       );
     }
+  }
+
+  void _startProfessionVerification() {
+    // Navigate to quiz page
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => QuizPage(
+              profession: _professionController.text,
+              experience: int.tryParse(_experienceController.text) ?? 1,
+              onQuizComplete: _handleQuizComplete,
+            ),
+      ),
+    );
+  }
+
+  void _handleQuizComplete(bool isPassed) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => QuizResultPage(
+              isPassed: isPassed,
+              onContinue: () {
+                // Return to signup flow and continue
+                Navigator.of(context).pop(); // Pop the result page
+                Navigator.of(context).pop(); // Pop the quiz page
+                _nextPage(); // Move to next step in signup
+              },
+              onRetake: () {
+                // Pop result page and retake the quiz
+                Navigator.of(context).pop();
+                _startProfessionVerification();
+              },
+              onLowerExperience: () {
+                // Pop both pages and reduce experience level
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
+                final currentExp =
+                    int.tryParse(_experienceController.text) ?? 1;
+                if (currentExp > 1) {
+                  setState(() {
+                    _experienceController.text = (currentExp - 1).toString();
+                  });
+                  SnackbarService.showSuccess(
+                    context,
+                    message:
+                        'Experience level reduced to ${currentExp - 1} years',
+                  );
+                } else {
+                  SnackbarService.showInfo(
+                    context,
+                    message: 'Experience level already at minimum',
+                  );
+                }
+              },
+            ),
+      ),
+    );
   }
 
   @override
@@ -616,21 +679,44 @@ class _SignupPageState extends State<SignupPage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 30),
-            TextFormField(
-              controller: _professionController,
+            DropdownButtonFormField<String>(
               decoration: InputDecoration(
                 labelText: 'Profession',
-                hintText: 'e.g. Software Engineer',
                 prefixIcon: const Icon(Icons.work_outline),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
+              hint: const Text('Select your profession'),
+              value:
+                  _professionController.text.isEmpty
+                      ? null
+                      : _professionController.text,
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter your profession';
+                  return 'Please select your profession';
                 }
                 return null;
+              },
+              items:
+                  Profession.techProfessions.map((profession) {
+                    return DropdownMenuItem<String>(
+                      value: profession.name,
+                      child: Row(
+                        children: [
+                          Text(profession.icon),
+                          const SizedBox(width: 8),
+                          Text(profession.name),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _professionController.text = value;
+                  });
+                }
               },
             ),
             const SizedBox(height: 16),
@@ -650,6 +736,9 @@ class _SignupPageState extends State<SignupPage> {
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return 'Please enter your years of experience';
+                }
+                if (int.tryParse(value) == 0) {
+                  return 'Experience must be at least 1 year';
                 }
                 return null;
               },
@@ -673,7 +762,7 @@ class _SignupPageState extends State<SignupPage> {
             ElevatedButton(
               onPressed: () {
                 if (_profileFormKey.currentState!.validate()) {
-                  _nextPage();
+                  _startProfessionVerification();
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -685,7 +774,7 @@ class _SignupPageState extends State<SignupPage> {
                 foregroundColor: Theme.of(context).colorScheme.onPrimary,
               ),
               child: const Text(
-                'CONTINUE',
+                'VERIFY & CONTINUE',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
