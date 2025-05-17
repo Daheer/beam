@@ -1,9 +1,10 @@
+import 'package:beam/services/snackbar_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'pages/login_page.dart';
 import 'pages/home_page.dart';
 import 'pages/email_verification_page.dart';
@@ -16,7 +17,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // If you need to ensure Firebase is initialized for background handlers
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  print("Handling a background message: ${message.messageId}");
   // Note: this runs in a separate isolate, so you can't interact with the UI
   // or run complex operations.
 
@@ -31,7 +31,6 @@ void main() async {
   try {
     await dotenv.load(); // Load .env file
   } catch (e) {
-    print('Error loading .env file: $e');
     // Continue without .env if it fails
   }
 
@@ -40,27 +39,21 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    print('Firebase initialized successfully');
   } catch (e) {
-    print('Error initializing Firebase: $e');
     // Continue without Firebase if it fails, app will have limited functionality
   }
 
   // Set up background message handler
   try {
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    print('Background message handler registered');
   } catch (e) {
-    print('Error setting up background message handler: $e');
     // Continue without background handler if it fails
   }
 
   // Initialize notification service after Firebase is initialized
   try {
     await NotificationService().initialize();
-    print('Notification service initialized');
   } catch (e) {
-    print('Error initializing notification service: $e');
     // Continue without notification service if it fails
   }
 
@@ -89,8 +82,6 @@ class _MyAppState extends State<MyApp> {
       // Handle notification clicks when app is in background but not terminated
       try {
         FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-          print('A notification was clicked! ${message.data}');
-
           if (message.data.containsKey('type') &&
               message.data['type'] == 'call') {
             // This will be handled by the HomePage widget when it mounts
@@ -98,10 +89,16 @@ class _MyAppState extends State<MyApp> {
           }
         });
       } catch (e) {
-        print('Error setting up onMessageOpenedApp listener: $e');
+        SnackbarService.showError(
+          context,
+          message: 'Error setting up notifications: $e',
+        );
       }
     } catch (e) {
-      print('Error setting up notifications: $e');
+      SnackbarService.showError(
+        context,
+        message: 'Error setting up notifications: $e',
+      );
     }
   }
 
@@ -116,6 +113,10 @@ class _MyAppState extends State<MyApp> {
           brightness: Brightness.light,
         ),
         useMaterial3: true,
+        textTheme: GoogleFonts.schibstedGroteskTextTheme(
+          Theme.of(context).textTheme,
+        ),
+        fontFamily: GoogleFonts.schibstedGrotesk().fontFamily,
       ),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -123,6 +124,13 @@ class _MyAppState extends State<MyApp> {
           brightness: Brightness.dark,
         ),
         useMaterial3: true,
+        textTheme: GoogleFonts.schibstedGroteskTextTheme(
+          Theme.of(context).textTheme.copyWith(
+            // Ensure texts are readable in dark theme
+            bodyMedium: TextStyle(color: Colors.white70),
+          ),
+        ),
+        fontFamily: GoogleFonts.schibstedGrotesk().fontFamily,
       ),
       // home: const LoginPage(),
       home: StreamBuilder(

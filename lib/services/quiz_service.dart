@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../services/log_service.dart';
 
 class QuizQuestion {
   final String question;
@@ -33,10 +34,7 @@ class QuizService {
       final projectId = dotenv.env['APPWRITE_PROJECT_ID'];
       final apiKey = dotenv.env['APPWRITE_API_KEY'];
 
-      if (appwriteEndpoint == null ||
-          functionId == null ||
-          projectId == null ||
-          apiKey == null) {
+      if (appwriteEndpoint == null || projectId == null || apiKey == null) {
         throw Exception('Missing Appwrite configuration');
       }
 
@@ -52,10 +50,9 @@ class QuizService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final result = data['response'];
 
-        if (result != null) {
-          final List<dynamic> questionsJson = jsonDecode(result);
+        if (data != null && data.containsKey("questions")) {
+          final List<dynamic> questionsJson = data["questions"];
           return questionsJson
               .map((json) => QuizQuestion.fromJson(json))
               .toList();
@@ -66,7 +63,7 @@ class QuizService {
         'Failed to load questions: ${response.statusCode} ${response.body}',
       );
     } catch (e) {
-      print('Stack trace: ${StackTrace.current}');
+      LogService.e('Error fetching quiz questions', e, StackTrace.current);
       return [];
     }
   }

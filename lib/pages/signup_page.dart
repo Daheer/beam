@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import 'login_page.dart';
 import 'quiz_page.dart';
 import 'quiz_result_page.dart';
@@ -38,7 +39,6 @@ class _SignupPageState extends State<SignupPage> {
   UserCredential? _userCredential;
   final List<String> _skills = [];
   String? _profileImagePath;
-  String? _profileImageUrl;
   Position? _userLocation;
   String _locationStatus = 'Not set yet';
 
@@ -239,10 +239,40 @@ class _SignupPageState extends State<SignupPage> {
 
       // Permission granted, get current position
       _userLocation = await Geolocator.getCurrentPosition();
-      setState(() {
-        _locationStatus =
-            'Location set: ${_userLocation!.latitude.toStringAsFixed(4)}, ${_userLocation!.longitude.toStringAsFixed(4)}';
-      });
+
+      // Get address from coordinates
+      try {
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+          _userLocation!.latitude,
+          _userLocation!.longitude,
+        );
+
+        if (placemarks.isNotEmpty) {
+          Placemark place = placemarks.first;
+          String address = [
+            if (place.street?.isNotEmpty == true) place.street,
+            if (place.locality?.isNotEmpty == true) place.locality,
+            if (place.administrativeArea?.isNotEmpty == true)
+              place.administrativeArea,
+            if (place.country?.isNotEmpty == true) place.country,
+          ].where((element) => element != null).join(', ');
+
+          setState(() {
+            _locationStatus = 'Location set: $address';
+          });
+        } else {
+          setState(() {
+            _locationStatus =
+                'Location set: ${_userLocation!.latitude.toStringAsFixed(4)}, ${_userLocation!.longitude.toStringAsFixed(4)}';
+          });
+        }
+      } catch (e) {
+        // Fallback to coordinates if geocoding fails
+        setState(() {
+          _locationStatus =
+              'Location set: ${_userLocation!.latitude.toStringAsFixed(4)}, ${_userLocation!.longitude.toStringAsFixed(4)}';
+        });
+      }
     } catch (e) {
       setState(() {
         _locationStatus = 'Error getting location: $e';
@@ -356,7 +386,12 @@ class _SignupPageState extends State<SignupPage> {
                 )
                 : IconButton(
                   icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed:
+                      () => Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) => const LoginPage(),
+                        ),
+                      ),
                 ),
       ),
       body: Column(
@@ -417,13 +452,15 @@ class _SignupPageState extends State<SignupPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 20),
-            Icon(
-              Icons.person_add_outlined,
-              size: 70,
-              color: Theme.of(context).colorScheme.primary,
+            Center(
+              child: Image.asset(
+                'assets/icon/splash_icon.png',
+                width: 150,
+                height: 150,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
-            const SizedBox(height: 20),
+
             Text(
               'Create Account',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(

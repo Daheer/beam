@@ -1,7 +1,9 @@
+// ignore_for_file: deprecated_member_use
+
+import 'package:beam/services/log_service.dart';
 import 'package:flutter/material.dart';
 import '../services/agora_service.dart';
 import '../services/call_service.dart';
-import '../services/config.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/snackbar_service.dart';
@@ -58,7 +60,7 @@ class _VoiceCallPageState extends State<VoiceCallPage> {
         });
       }
     } catch (e) {
-      debugPrint('Error loading remote user info: $e');
+      LogService.e('Error loading remote user info', e, StackTrace.current);
     }
   }
 
@@ -127,7 +129,7 @@ class _VoiceCallPageState extends State<VoiceCallPage> {
       _onCallEnd(reason: 'Remote user ended the call');
     });
 
-    print('joining channel: ${widget.channelName}');
+    LogService.i('joining channel: ${widget.channelName}');
 
     if (widget.isIncoming) {
       // Update call status to ringing for incoming calls

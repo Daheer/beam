@@ -1,3 +1,4 @@
+import 'package:beam/services/log_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
@@ -5,9 +6,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:http/http.dart' as http;
 import 'package:marquee/marquee.dart';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import '../pages/login_page.dart';
@@ -63,7 +62,7 @@ Future<String> getAddressFromLatLng(GeoPoint geoPoint) async {
     }
     return 'Unknown location';
   } catch (e) {
-    print('Error getting address: $e');
+    LogService.e('Error getting address', e, StackTrace.current);
     return 'Invalid location';
   }
 }
@@ -79,7 +78,7 @@ Future<double> getDistanceBetween(GeoPoint point1, GeoPoint point2) async {
     );
     return distanceInMeters / 1000; // Convert to kilometers
   } catch (e) {
-    print('Error calculating distance: $e');
+    LogService.e('Error calculating distance', e, StackTrace.current);
     return -1; // Return -1 to indicate error
   }
 }
@@ -114,7 +113,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
       final User? currentUser = _auth.currentUser;
 
       if (currentUser != null) {
-        print('Loading user data for ${currentUser.uid}');
+        LogService.i('Loading user data for ${currentUser.uid}');
 
         try {
           // Use the UserService instead of direct Firestore access
@@ -152,18 +151,20 @@ class _UserProfilePageState extends State<UserProfilePage> {
               );
             });
           } else {
-            print('User document does not exist, creating default profile');
+            LogService.i(
+              'User document does not exist, creating default profile',
+            );
             // Create a default user document if it doesn't exist
             await _createDefaultUserProfile(currentUser);
           }
         } catch (e) {
-          print('Error loading profile: $e');
+          LogService.e('Error loading profile', e, StackTrace.current);
           setState(() {
             _errorMessage = 'Error loading profile: $e';
           });
         }
       } else {
-        print('No current user found');
+        LogService.i('No current user found');
         // Handle the case when there is no current user
         setState(() {
           _errorMessage =
@@ -182,7 +183,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
         }
       }
     } catch (e) {
-      print('Error loading profile: $e');
+      LogService.e('Error loading profile', e, StackTrace.current);
       setState(() {
         _errorMessage = 'Error loading profile: $e';
       });
@@ -199,7 +200,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
     try {
       position = await _determinePosition();
     } catch (e) {
-      print('Error getting position: $e');
+      LogService.e('Error getting position', e, StackTrace.current);
     }
 
     final GeoPoint location =
@@ -313,7 +314,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
         );
       }
     } catch (e) {
-      print('Error updating location: $e');
+      LogService.e('Error updating location', e, StackTrace.current);
       SnackbarService.showError(
         context,
         message:

@@ -1,3 +1,4 @@
+import 'package:beam/services/log_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
@@ -35,7 +36,7 @@ class UserService {
 
       // Return cached data if valid and no force refresh
       if (!forceRefresh && _isCacheValid) {
-        print('Returning cached user data');
+        LogService.i('Returning cached user data');
         return _cachedUserData;
       }
 
@@ -51,7 +52,7 @@ class UserService {
       }
       return null;
     } catch (e) {
-      print('Error getting current user data: $e');
+      LogService.e('Error getting current user data', e, StackTrace.current);
       return null;
     }
   }
@@ -73,7 +74,7 @@ class UserService {
 
       return true;
     } catch (e) {
-      print('Error updating user data: $e');
+      LogService.e('Error updating user data', e, StackTrace.current);
       return false;
     }
   }
@@ -86,12 +87,12 @@ class UserService {
       // Get current user's location
       final currentUserData = await getCurrentUserData();
       if (currentUserData == null) {
-        print('Current user data is null');
+        LogService.e('Current user data is null', StackTrace.current);
         return [];
       }
 
       if (currentUserData['location'] == null) {
-        print('Current user location is null');
+        LogService.e('Current user location is null', StackTrace.current);
         return [];
       }
 
@@ -100,7 +101,7 @@ class UserService {
 
       final User? currentUser = _auth.currentUser;
       if (currentUser == null) {
-        print('Current Firebase user is null');
+        LogService.e('Current Firebase user is null', StackTrace.current);
         return [];
       }
 
@@ -115,7 +116,7 @@ class UserService {
                 .where('isBeaming', isEqualTo: true)
                 .get();
       } catch (e) {
-        print('Error fetching users from Firestore: $e');
+        LogService.e('Error fetching users from Firestore', StackTrace.current);
         return [];
       }
 
@@ -175,7 +176,11 @@ class UserService {
             nearbyUsers.add(standardizedUser);
           }
         } catch (e) {
-          print('Error processing user ${doc.id}: $e');
+          LogService.e(
+            'Error processing user ${doc.id}: $e',
+            e,
+            StackTrace.current,
+          );
           // Skip this user but continue with others
           continue;
         }
@@ -190,7 +195,7 @@ class UserService {
 
       return nearbyUsers;
     } catch (e) {
-      print('Error getting nearby users: $e');
+      LogService.e('Error getting nearby users', e, StackTrace.current);
       return [];
     }
   }
@@ -241,7 +246,7 @@ class UserService {
 
       return true;
     } catch (e) {
-      print('Error updating user location: $e');
+      LogService.e('Error updating user location', e, StackTrace.current);
       return false;
     }
   }

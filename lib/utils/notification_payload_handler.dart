@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import '../pages/home_page.dart';
 import '../services/snackbar_service.dart';
 
 /// Handle a notification payload when the app is opened from a terminated state

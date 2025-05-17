@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'log_service.dart';
 
 class AgoraTokenService {
   static Future<String?> generateToken(String channelName, String uid) async {
@@ -40,8 +41,7 @@ class AgoraTokenService {
       // Fallback to temporary token for testing
       return dotenv.env['AGORA_TOKEN'];
     } catch (e) {
-      print('Error generating token: $e');
-      print('Stack trace: ${StackTrace.current}');
+      LogService.e('Error generating token', e, StackTrace.current);
       // Fallback to temporary token for testing
       return dotenv.env['AGORA_TOKEN'];
     }

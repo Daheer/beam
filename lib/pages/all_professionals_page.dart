@@ -1,3 +1,6 @@
+// ignore_for_file: deprecated_member_use
+
+import 'package:beam/services/log_service.dart';
 import 'package:flutter/material.dart';
 import 'professional_profile_page.dart';
 
@@ -36,7 +39,7 @@ class _AllProfessionalsState extends State<AllProfessionals> {
         _isRefreshing = false;
       });
     } catch (e) {
-      print('Error refreshing data: $e');
+      LogService.e('Error refreshing data', e, StackTrace.current);
       setState(() {
         _isRefreshing = false;
       });

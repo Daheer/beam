@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../services/log_service.dart';
 import 'signup_page.dart';
 import 'home_page.dart';
 import 'email_verification_page.dart';
@@ -39,7 +40,7 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       final user = userCredential.user;
-      print('User logged in: ${user?.email}');
+      LogService.i('User logged in: ${user?.email}');
 
       // Check if email is verified
       if (user != null && !user.emailVerified) {
@@ -81,13 +82,13 @@ class _LoginPageState extends State<LoginPage> {
       setState(() {
         _errorMessage = message;
       });
-      print(e);
+      LogService.e('Login failed', e, StackTrace.current);
       return false;
     } catch (e) {
       setState(() {
         _errorMessage = 'An unexpected error occurred. Please try again.';
       });
-      print(e);
+      LogService.e('Login failed', e, StackTrace.current);
       return false;
     }
   }
@@ -105,12 +106,15 @@ class _LoginPageState extends State<LoginPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 40),
-                Icon(
-                  Icons.lock_outlined,
-                  size: 80,
-                  color: Theme.of(context).colorScheme.primary,
+                Center(
+                  child: Image.asset(
+                    'assets/icon/splash_icon.png',
+                    width: 180,
+                    height: 180,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
-                const SizedBox(height: 40),
+                // const SizedBox(height: 2),
                 Text(
                   'Welcome Back',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(

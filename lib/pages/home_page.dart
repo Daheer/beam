@@ -1,7 +1,8 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../widgets/beam_blob.dart';
 import '../widgets/nearby_professional_card.dart';
@@ -13,6 +14,7 @@ import 'user_profile_page.dart';
 import 'voice_call_page.dart';
 import 'activity_history_page.dart';
 import '../services/snackbar_service.dart';
+import '../services/log_service.dart';
 
 // Call button widget for both incoming call dialog and call page
 class _CallButton extends StatelessWidget {
@@ -27,6 +29,7 @@ class _CallButton extends StatelessWidget {
     required this.icon,
     required this.backgroundColor,
     required this.iconColor,
+    // ignore: unused_element_parameter
     this.size = 55,
   });
 
@@ -256,7 +259,7 @@ class _HomePageState extends State<HomePage> {
         });
       }
     } catch (e) {
-      print('Error loading user status: $e');
+      LogService.e('Error loading user status', e, StackTrace.current);
     }
   }
 
@@ -300,7 +303,7 @@ class _HomePageState extends State<HomePage> {
         }
       }
     } catch (e) {
-      print('Error updating beam status: $e');
+      LogService.e('Error updating beam status', e, StackTrace.current);
       // Revert the state if the update failed
       setState(() {
         isBeaming = !isBeaming;
@@ -332,36 +335,10 @@ class _HomePageState extends State<HomePage> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading nearby users: $e');
+      LogService.e('Error loading nearby users', e, StackTrace.current);
       setState(() {
         _isLoading = false;
       });
-    }
-  }
-
-  Future<void> _refreshLocation() async {
-    try {
-      final success = await _userService.updateUserLocation();
-      if (success && mounted) {
-        SnackbarService.showSuccess(
-          context,
-          message: 'Location updated successfully',
-        );
-        _loadNearbyUsers();
-      } else if (mounted) {
-        SnackbarService.showError(
-          context,
-          message: 'Failed to update location',
-        );
-      }
-    } catch (e) {
-      print('Error refreshing location: $e');
-      if (mounted) {
-        SnackbarService.showError(
-          context,
-          message: 'Error updating location: $e',
-        );
-      }
     }
   }
 
@@ -376,7 +353,11 @@ class _HomePageState extends State<HomePage> {
         handleNotificationPayload(context, initialMessage.data);
       }
     } catch (e) {
-      print('Error checking for initial notification message: $e');
+      LogService.e(
+        'Error checking for initial notification message',
+        e,
+        StackTrace.current,
+      );
       // Continue without checking for initial message
     }
   }
@@ -486,7 +467,6 @@ class _HomePageState extends State<HomePage> {
                               ),
                             );
                           } catch (e) {
-                            print('Error navigating to AllProfessionals: $e');
                             SnackbarService.showError(
                               context,
                               message: 'Error loading professionals list: $e',

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import 'package:beam/services/log_service.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -131,23 +132,25 @@ class AgoraService {
     }
 
     try {
-      print('Starting joinChannel process for channel: $channelName');
+      LogService.i('Starting joinChannel process for channel: $channelName');
 
       // Get a token if not provided
       final channelToken = await AgoraTokenService.generateToken(
         channelName,
         uid.toString(),
       );
-      print("Got token from service: $channelToken");
+      LogService.i("Got token from service: $channelToken");
 
       if (channelToken == null) {
         throw Exception('Failed to generate Agora token');
       }
 
-      print('Channel Token length: ${channelToken.length}');
-      print('First 10 chars of token: ${channelToken.substring(0, 10)}...');
+      LogService.i('Channel Token length: ${channelToken.length}');
+      LogService.i(
+        'First 10 chars of token: ${channelToken.substring(0, 10)}...',
+      );
 
-      debugPrint(
+      LogService.i(
         'Joining channel: $channelName with UID: $uid (0 means SDK will generate random UID)',
       );
 
@@ -168,10 +171,10 @@ class AgoraService {
         ),
       );
 
-      print('Successfully joined channel: $channelName');
-      print('Connection state: ${_engine?.getConnectionState()}');
+      LogService.i('Successfully joined channel: $channelName');
+      LogService.i('Connection state: ${_engine?.getConnectionState()}');
     } catch (e) {
-      debugPrint('Error joining channel: $e');
+      LogService.e('Error joining channel', e, StackTrace.current);
       rethrow;
     }
   }
@@ -182,7 +185,7 @@ class AgoraService {
     try {
       await _engine?.leaveChannel();
     } catch (e) {
-      debugPrint('Error leaving channel: $e');
+      LogService.e('Error leaving channel', e, StackTrace.current);
     }
   }
 
@@ -192,7 +195,7 @@ class AgoraService {
     try {
       await _engine?.muteLocalAudioStream(!enabled);
     } catch (e) {
-      debugPrint('Error toggling microphone: $e');
+      LogService.e('Error toggling microphone', e, StackTrace.current);
     }
   }
 }

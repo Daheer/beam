@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:http_parser/http_parser.dart';
 import 'package:flutter/material.dart';
 import '../services/config.dart';
 import '../services/snackbar_service.dart';

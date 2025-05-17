@@ -1,7 +1,8 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/user_service.dart';
 
 class ActivityHistoryPage extends StatefulWidget {
   const ActivityHistoryPage({super.key});
@@ -13,7 +14,6 @@ class ActivityHistoryPage extends StatefulWidget {
 class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
-  final _userService = UserService();
   bool _isLoading = true;
   List<Map<String, dynamic>> _activities = [];
 
@@ -84,7 +84,6 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
         });
       }
     } catch (e) {
-      print('Error loading activities: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;

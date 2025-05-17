@@ -27,13 +27,15 @@ class _QuizPageState extends State<QuizPage> {
   String? _selectedAnswer;
   bool _isAnswerChecked = false;
   bool _isTimeUp = false;
-  int _timeLeft = 10; // Time in seconds for each question
+  int _timeLeft = 5; // Time in seconds for each question
   Timer? _timer;
   final int _passingScore = 4; // Passing score out of 5
 
   @override
   void initState() {
     super.initState();
+    // Initialize with empty list to prevent null issues
+    _questions = [];
     _loadQuestions();
   }
 
@@ -49,24 +51,166 @@ class _QuizPageState extends State<QuizPage> {
         widget.profession,
         widget.experience,
       );
+
       setState(() {
-        _questions = questions;
-        _isLoading = false;
+        if (questions.isNotEmpty) {
+          _questions = questions;
+          _isLoading = false;
+          _startTimer();
+        } else {
+          // If no questions returned, show fallback questions
+          _questions = _getFallbackQuestions();
+          _isLoading = false;
+          _startTimer();
+        }
       });
-      _startTimer();
     } catch (e) {
       if (mounted) {
+        // Use fallback questions if there's an error
+        setState(() {
+          _questions = _getFallbackQuestions();
+          _isLoading = false;
+        });
+        _startTimer();
+
         SnackbarService.showError(
           context,
-          message: 'Error loading questions: $e',
+          message: 'Using default questions due to error: $e',
         );
       }
     }
   }
 
+  // Provide fallback questions in case the API fails
+  List<QuizQuestion> _getFallbackQuestions() {
+    if (widget.profession.toLowerCase().contains('machine learning') ||
+        widget.profession.toLowerCase().contains('data scientist')) {
+      return [
+        QuizQuestion(
+          question:
+              "Which of the following is a supervised learning algorithm?",
+          options: ["K-Means", "PCA", "Linear Regression", "DBSCAN"],
+          answer: "Linear Regression",
+        ),
+        QuizQuestion(
+          question:
+              "What metric is commonly used to evaluate classification models?",
+          options: ["RMSE", "R-squared", "Accuracy", "Mean Absolute Error"],
+          answer: "Accuracy",
+        ),
+        QuizQuestion(
+          question: "What technique is used to prevent overfitting?",
+          options: [
+            "Feature Scaling",
+            "Cross-Validation",
+            "Dimensionality Reduction",
+            "Data Augmentation",
+          ],
+          answer: "Cross-Validation",
+        ),
+        QuizQuestion(
+          question:
+              "Which library in Python is widely used for numerical operations?",
+          options: ["Pandas", "Matplotlib", "NumPy", "SciPy"],
+          answer: "NumPy",
+        ),
+        QuizQuestion(
+          question: "What is the primary goal of feature scaling?",
+          options: [
+            "Reduce dimensionality",
+            "Handle missing values",
+            "Improve algorithm performance",
+            "Increase data size",
+          ],
+          answer: "Improve algorithm performance",
+        ),
+      ];
+    } else if (widget.profession.toLowerCase().contains('developer') ||
+        widget.profession.toLowerCase().contains('engineer')) {
+      return [
+        QuizQuestion(
+          question: "Which data structure uses LIFO ordering?",
+          options: ["Queue", "Stack", "Array", "Tree"],
+          answer: "Stack",
+        ),
+        QuizQuestion(
+          question: "Which of the following is NOT a RESTful API method?",
+          options: ["GET", "POST", "DELETE", "SAVE"],
+          answer: "SAVE",
+        ),
+        QuizQuestion(
+          question: "What does ORM stand for in software development?",
+          options: [
+            "Object-Relational Mapping",
+            "Online Resource Management",
+            "Operational Risk Model",
+            "Object Rendering Method",
+          ],
+          answer: "Object-Relational Mapping",
+        ),
+        QuizQuestion(
+          question: "Which is a core principle of functional programming?",
+          options: [
+            "Inheritance",
+            "Immutability",
+            "Polymorphism",
+            "Encapsulation",
+          ],
+          answer: "Immutability",
+        ),
+        QuizQuestion(
+          question: "What is the time complexity of binary search?",
+          options: ["O(1)", "O(log n)", "O(n)", "O(n²)"],
+          answer: "O(log n)",
+        ),
+      ];
+    } else {
+      // Default questions for other professions
+      return [
+        QuizQuestion(
+          question: "Which of these is a version control system?",
+          options: ["Docker", "Kubernetes", "Git", "Jenkins"],
+          answer: "Git",
+        ),
+        QuizQuestion(
+          question: "What does API stand for?",
+          options: [
+            "Application Programming Interface",
+            "Advanced Programming Integration",
+            "Automated Protocol Interface",
+            "Application Process Integration",
+          ],
+          answer: "Application Programming Interface",
+        ),
+        QuizQuestion(
+          question: "Which of these is a NoSQL database?",
+          options: ["MySQL", "PostgreSQL", "MongoDB", "SQLite"],
+          answer: "MongoDB",
+        ),
+        QuizQuestion(
+          question: "Which language is primarily used for web styling?",
+          options: ["HTML", "CSS", "JavaScript", "PHP"],
+          answer: "CSS",
+        ),
+        QuizQuestion(
+          question: "What is the primary purpose of a load balancer?",
+          options: [
+            "Distribute network traffic",
+            "Store cached data",
+            "Encrypt data transmission",
+            "Execute server-side code",
+          ],
+          answer: "Distribute network traffic",
+        ),
+      ];
+    }
+  }
+
   void _startTimer() {
+    if (_questions.isEmpty) return;
+
     setState(() {
-      _timeLeft = 10;
+      _timeLeft = 5;
       _isTimeUp = false;
     });
 
@@ -91,7 +235,7 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   void _selectAnswer(String answer) {
-    if (_isAnswerChecked || _isTimeUp) return;
+    if (_isAnswerChecked || _isTimeUp || _questions.isEmpty) return;
 
     setState(() {
       _selectedAnswer = answer;
@@ -104,6 +248,8 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   void _checkAnswer() {
+    if (_questions.isEmpty) return;
+
     if (_selectedAnswer == _questions[_currentQuestionIndex].answer) {
       setState(() {
         _correctAnswers++;
@@ -112,6 +258,8 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   void _moveToNextQuestion() {
+    if (_questions.isEmpty) return;
+
     if (_currentQuestionIndex < _questions.length - 1) {
       setState(() {
         _currentQuestionIndex++;
@@ -125,6 +273,167 @@ class _QuizPageState extends State<QuizPage> {
       final isPassed = _correctAnswers >= _passingScore;
       widget.onQuizComplete(isPassed);
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Knowledge Verification'),
+        centerTitle: true,
+      ),
+      body:
+          _isLoading
+              ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Loading quiz questions...'),
+                  ],
+                ),
+              )
+              : _questions.isEmpty
+              ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 60, color: Colors.orange),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Unable to load questions',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'There was a problem loading questions for your profession',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () {
+                        // Go back
+                        Navigator.of(context).pop();
+                      },
+                      child: const Text('Go Back'),
+                    ),
+                  ],
+                ),
+              )
+              : _buildQuizContent(),
+    );
+  }
+
+  Widget _buildQuizContent() {
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildProgressBar(),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Score: $_correctAnswers/${_currentQuestionIndex + (_isAnswerChecked ? 1 : 0)}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              _buildTimer(),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                _questions[_currentQuestionIndex].question,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Expanded(
+            child: ListView.builder(
+              itemCount: _questions[_currentQuestionIndex].options.length,
+              itemBuilder: (context, index) {
+                final option = _questions[_currentQuestionIndex].options[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Material(
+                    color: _getOptionColor(option),
+                    borderRadius: BorderRadius.circular(12),
+                    elevation: option == _selectedAnswer ? 4 : 2,
+                    child: InkWell(
+                      onTap:
+                          _isAnswerChecked || _isTimeUp
+                              ? null
+                              : () => _selectAnswer(option),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16.0,
+                          horizontal: 16.0,
+                        ),
+                        child: Row(
+                          children: [
+                            Text(
+                              '${String.fromCharCode(65 + index)}.',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                option,
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                            ),
+                            if (_isAnswerChecked || _isTimeUp)
+                              Icon(
+                                option ==
+                                        _questions[_currentQuestionIndex].answer
+                                    ? Icons.check_circle
+                                    : (option == _selectedAnswer
+                                        ? Icons.cancel
+                                        : null),
+                                color:
+                                    option ==
+                                            _questions[_currentQuestionIndex]
+                                                .answer
+                                        ? Colors.green
+                                        : Colors.red,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Color _getOptionColor(String option) {
@@ -184,136 +493,6 @@ class _QuizPageState extends State<QuizPage> {
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Knowledge Verification'),
-        centerTitle: true,
-      ),
-      body:
-          _isLoading
-              ? const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Loading quiz questions...'),
-                  ],
-                ),
-              )
-              : Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildProgressBar(),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Score: $_correctAnswers/${_currentQuestionIndex + (_isAnswerChecked ? 1 : 0)}',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        _buildTimer(),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    Card(
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Text(
-                          _questions[_currentQuestionIndex].question,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount:
-                            _questions[_currentQuestionIndex].options.length,
-                        itemBuilder: (context, index) {
-                          final option =
-                              _questions[_currentQuestionIndex].options[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12.0),
-                            child: Material(
-                              color: _getOptionColor(option),
-                              borderRadius: BorderRadius.circular(12),
-                              elevation: option == _selectedAnswer ? 4 : 2,
-                              child: InkWell(
-                                onTap:
-                                    _isAnswerChecked || _isTimeUp
-                                        ? null
-                                        : () => _selectAnswer(option),
-                                borderRadius: BorderRadius.circular(12),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16.0,
-                                    horizontal: 16.0,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Text(
-                                        '${String.fromCharCode(65 + index)}.',
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(
-                                          option,
-                                          style: const TextStyle(fontSize: 16),
-                                        ),
-                                      ),
-                                      if (_isAnswerChecked || _isTimeUp)
-                                        Icon(
-                                          option ==
-                                                  _questions[_currentQuestionIndex]
-                                                      .answer
-                                              ? Icons.check_circle
-                                              : (option == _selectedAnswer
-                                                  ? Icons.cancel
-                                                  : null),
-                                          color:
-                                              option ==
-                                                      _questions[_currentQuestionIndex]
-                                                          .answer
-                                                  ? Colors.green
-                                                  : Colors.red,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
     );
   }
 }
