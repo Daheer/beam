@@ -64,7 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '623564999295',
     projectId: 'beam-networking',
     storageBucket: 'beam-networking.firebasestorage.app',
-    iosBundleId: 'com.example.beam',
+    iosBundleId: 'com.example.beamble',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -73,7 +73,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '623564999295',
     projectId: 'beam-networking',
     storageBucket: 'beam-networking.firebasestorage.app',
-    iosBundleId: 'com.example.beam',
+    iosBundleId: 'com.example.beamble',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

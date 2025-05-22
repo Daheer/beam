@@ -1,4 +1,4 @@
-package com.example.beam
+package com.example.beamble
 
 import io.flutter.embedding.android.FlutterActivity
 

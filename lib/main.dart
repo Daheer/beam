@@ -1,4 +1,3 @@
-import 'package:beam/services/snackbar_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -10,6 +9,9 @@ import 'pages/home_page.dart';
 import 'pages/email_verification_page.dart';
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
+import 'pages/activity_history_page.dart';
+import 'dart:io' show Platform;
+import 'services/log_service.dart';
 
 // Handle background messages
 @pragma('vm:entry-point')
@@ -17,11 +19,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // If you need to ensure Firebase is initialized for background handlers
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Note: this runs in a separate isolate, so you can't interact with the UI
-  // or run complex operations.
-
   // Don't need to show notification, it will be handled by FCM automatically
-  // But if you need to do something with the data, you can do it here
+  // But we can process the data if needed
 }
 
 void main() async {
@@ -39,15 +38,28 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    // Set up background message handler
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // Request permission for iOS
+    if (Platform.isIOS) {
+      FirebaseMessaging messaging = FirebaseMessaging.instance;
+      NotificationSettings settings = await messaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      );
+    }
+
+    // Get FCM token (for debugging)
+    String? token = await FirebaseMessaging.instance.getToken();
   } catch (e) {
     // Continue without Firebase if it fails, app will have limited functionality
-  }
-
-  // Set up background message handler
-  try {
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  } catch (e) {
-    // Continue without background handler if it fails
   }
 
   // Initialize notification service after Firebase is initialized
@@ -80,31 +92,69 @@ class _MyAppState extends State<MyApp> {
       NotificationService().setupForegroundNotificationHandling();
 
       // Handle notification clicks when app is in background but not terminated
-      try {
-        FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-          if (message.data.containsKey('type') &&
-              message.data['type'] == 'call') {
-            // This will be handled by the HomePage widget when it mounts
-            // as it already listens for incoming calls
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        if (message.data.containsKey('type')) {
+          if (message.data['type'] == 'call') {
+            // This will be handled by the HomePage widget
+          } else if (message.data['type'] == 'interest_request') {
+            // Navigate to activity history page
+            String? requestId = message.data['requestId'];
+            if (requestId != null) {
+              // Add a small delay to ensure navigation context is ready
+              Future.delayed(Duration(milliseconds: 500), () {
+                _navigateToActivityHistory(requestId);
+              });
+            }
           }
-        });
-      } catch (e) {
-        SnackbarService.showError(
-          context,
-          message: 'Error setting up notifications: $e',
-        );
-      }
+        }
+      });
+
+      // Check if app was opened from terminated state via notification
+      FirebaseMessaging.instance.getInitialMessage().then((
+        RemoteMessage? message,
+      ) {
+        if (message != null) {
+          // Add delay to ensure app is initialized
+          Future.delayed(Duration(seconds: 1), () {
+            if (message.data.containsKey('type') &&
+                message.data['type'] == 'interest_request') {
+              String? requestId = message.data['requestId'];
+              if (requestId != null) {
+                _navigateToActivityHistory(requestId);
+              }
+            }
+          });
+        }
+      });
     } catch (e) {
-      SnackbarService.showError(
-        context,
-        message: 'Error setting up notifications: $e',
+      LogService.e('Error setting up notifications', e, StackTrace.current);
+    }
+  }
+
+  void _navigateToActivityHistory(String? requestId) {
+    final context = navigatorKey.currentContext;
+    if (context != null && requestId != null) {
+      // Pop to root to avoid stacking multiple ActivityHistoryPages
+      Navigator.of(context).popUntil((route) => route.isFirst);
+
+      // Navigate to ActivityHistoryPage
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder:
+              (context) =>
+                  ActivityHistoryPage(notificationRequestId: requestId),
+        ),
       );
     }
   }
 
+  // Global navigator key for context-free navigation
+  static final navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey, // Add navigator key
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.system,
       theme: ThemeData(

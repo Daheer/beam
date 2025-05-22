@@ -1,24 +1,66 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user is involved in the request
+    function isUserInvolved(userId) {
+      return request.auth.uid == userId;
+    }
+
     match /users/{userId} {
       allow read;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
     }
     match /active_users/{userId} {
       allow read;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
     }
     match /calls/{callId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAuthenticated();
       
       match /callerCandidates/{candidate} {
-        allow read, write: if request.auth != null;
+        allow read, write: if isAuthenticated();
       }
       
       match /calleeCandidates/{candidate} {
-        allow read, write: if request.auth != null;
+        allow read, write: if isAuthenticated();
       }
+    }
+    match /connectionRequests/{requestId} {
+      // Allow reading any single document if authenticated
+      allow get: if isAuthenticated();
+      
+      // Allow listing/querying if authenticated
+      allow list: if isAuthenticated();
+      
+      // Allow creating new requests if authenticated
+      allow create: if isAuthenticated();
+      
+      // Allow updating/deleting if the user is involved in the request
+      allow update, delete: if isAuthenticated() && 
+        (isUserInvolved(resource.data.senderId) || isUserInvolved(resource.data.receiverId));
+    }
+    match /notifications/{notificationId} {
+      allow create: if isAuthenticated();
+      allow read, update: if isAuthenticated();
+    }
+    match /interestRequests/{requestId} {
+      // Allow reading any single document if authenticated
+      allow get: if isAuthenticated();
+      
+      // Allow listing/querying if authenticated
+      allow list: if isAuthenticated();
+      
+      // Allow creating new requests if authenticated
+      allow create: if isAuthenticated();
+      
+      // Allow updating/deleting if the user is involved in the request
+      allow update, delete: if isAuthenticated() && 
+        (isUserInvolved(resource.data.senderId) || isUserInvolved(resource.data.receiverId));
     }
   }
 }

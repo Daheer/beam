@@ -8,6 +8,9 @@ import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import '../pages/voice_call_page.dart';
 import '../services/call_service.dart';
 import '../services/snackbar_service.dart';
+import '../services/notification_service.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../services/connection_request_service.dart';
 
 class ProfessionalProfile extends StatefulWidget {
   final Map<String, dynamic> professional;
@@ -20,12 +23,87 @@ class ProfessionalProfile extends StatefulWidget {
 
 class _ProfessionalProfileState extends State<ProfessionalProfile> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final CallService _callService = CallService();
-  bool _isConnecting = false;
+  final NotificationService _notificationService = NotificationService();
+  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  final ConnectionRequestService _connectionService =
+      ConnectionRequestService();
+  bool _isSendingRequest = false;
+  bool _hasExistingRequest = false;
+  String? _requestStatus;
+  bool _isOutgoingRequest = true;
 
   @override
   void initState() {
     super.initState();
+    _checkExistingRequest();
+    _initNotifications();
+  }
+
+  Future<void> _checkExistingRequest() async {
+    if (_auth.currentUser == null) return;
+
+    try {
+      final currentUserId = _auth.currentUser!.uid;
+      final professionalId = widget.professional['id'];
+
+      // First check for requests from current user to professional
+      final sentRequests =
+          await _firestore
+              .collection('connectionRequests')
+              .where('senderId', isEqualTo: currentUserId)
+              .where('receiverId', isEqualTo: professionalId)
+              .orderBy('createdAt', descending: true)
+              .limit(1)
+              .get();
+
+      if (sentRequests.docs.isNotEmpty) {
+        final status = sentRequests.docs.first.data()['status'];
+        final isMutual = await _connectionService.checkMutualConnection(
+          professionalId,
+        );
+        setState(() {
+          _hasExistingRequest = true;
+          _requestStatus = status;
+          // Only set to mutual if both users have accepted requests
+          if (isMutual) {
+            _requestStatus = 'mutual';
+          }
+          _isOutgoingRequest = false;
+        });
+        return;
+      }
+
+      // If no outgoing request found, check for incoming requests
+      final receivedRequests =
+          await _firestore
+              .collection('connectionRequests')
+              .where('senderId', isEqualTo: professionalId)
+              .where('receiverId', isEqualTo: currentUserId)
+              .orderBy('createdAt', descending: true)
+              .limit(1)
+              .get();
+
+      if (receivedRequests.docs.isNotEmpty) {
+        final status = receivedRequests.docs.first.data()['status'];
+        final isMutual = await _connectionService.checkMutualConnection(
+          professionalId,
+        );
+        setState(() {
+          _hasExistingRequest = true;
+          _requestStatus = status;
+          // Only set to mutual if both users have accepted requests
+          if (isMutual) {
+            _requestStatus = 'mutual';
+          }
+          _isOutgoingRequest = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking existing request: $e');
+    }
   }
 
   Future<bool> _handleMicrophonePermission() async {
@@ -94,14 +172,56 @@ class _ProfessionalProfileState extends State<ProfessionalProfile> {
     }
   }
 
-  void _connectWithProfessional() async {
+  void _sendConnectionRequest() async {
     if (_auth.currentUser == null) return;
 
     setState(() {
-      _isConnecting = true;
+      _isSendingRequest = true;
     });
 
     try {
+      final requestId = await _connectionService.sendConnectionRequest(
+        widget.professional['id'],
+      );
+
+      if (requestId == null) {
+        throw Exception('Failed to send connection request');
+      }
+
+      if (mounted) {
+        setState(() {
+          _hasExistingRequest = true;
+          _requestStatus = 'pending';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error sending connection request: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingRequest = false;
+        });
+      }
+    }
+  }
+
+  void _startCall() async {
+    if (_auth.currentUser == null) return;
+
+    setState(() {
+      _isSendingRequest = true;
+    });
+
+    try {
+      // First verify mutual connection
+      final canCall = await _connectionService.canCall(
+        widget.professional['id'],
+      );
+
+      if (!canCall) {
+        throw Exception('Mutual connection is required to start a call');
+      }
+
       debugPrint('Checking microphone permissions...');
       final hasPermission = await _handleMicrophonePermission();
 
@@ -139,7 +259,136 @@ class _ProfessionalProfileState extends State<ProfessionalProfile> {
     } finally {
       if (mounted) {
         setState(() {
-          _isConnecting = false;
+          _isSendingRequest = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _initNotifications() async {
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@drawable/ic_notification');
+    const DarwinInitializationSettings initializationSettingsIOS =
+        DarwinInitializationSettings();
+    const InitializationSettings initializationSettings =
+        InitializationSettings(
+          android: initializationSettingsAndroid,
+          iOS: initializationSettingsIOS,
+        );
+    await _flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  }
+
+  Future<void> _acceptRequest() async {
+    if (_auth.currentUser == null) return;
+
+    setState(() {
+      _isSendingRequest = true;
+    });
+
+    try {
+      // First check for requests from professional to current user
+      final currentUserId = _auth.currentUser!.uid;
+      final professionalId = widget.professional['id'];
+
+      final receivedRequests =
+          await _firestore
+              .collection('connectionRequests')
+              .where('senderId', isEqualTo: professionalId)
+              .where('receiverId', isEqualTo: currentUserId)
+              .where('status', isEqualTo: 'pending')
+              .limit(1)
+              .get();
+
+      if (receivedRequests.docs.isEmpty) {
+        throw Exception('No pending request found');
+      }
+
+      final requestId = receivedRequests.docs.first.id;
+      final success = await _connectionService.acceptConnectionRequest(
+        requestId,
+      );
+
+      if (success && mounted) {
+        setState(() {
+          _requestStatus = 'accepted';
+        });
+        SnackbarService.showSuccess(
+          context,
+          message: 'Connection request accepted successfully',
+        );
+      } else {
+        throw Exception('Failed to accept request');
+      }
+    } catch (e) {
+      debugPrint('Error accepting request: $e');
+      if (mounted) {
+        SnackbarService.showError(
+          context,
+          message: 'Failed to accept request: $e',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingRequest = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _rejectRequest() async {
+    if (_auth.currentUser == null) return;
+
+    setState(() {
+      _isSendingRequest = true;
+    });
+
+    try {
+      // First check for requests from professional to current user
+      final currentUserId = _auth.currentUser!.uid;
+      final professionalId = widget.professional['id'];
+
+      final receivedRequests =
+          await _firestore
+              .collection('connectionRequests')
+              .where('senderId', isEqualTo: professionalId)
+              .where('receiverId', isEqualTo: currentUserId)
+              .where('status', isEqualTo: 'pending')
+              .limit(1)
+              .get();
+
+      if (receivedRequests.docs.isEmpty) {
+        throw Exception('No pending request found');
+      }
+
+      final requestId = receivedRequests.docs.first.id;
+      final success = await _connectionService.rejectConnectionRequest(
+        requestId,
+      );
+
+      if (success && mounted) {
+        setState(() {
+          _requestStatus = 'rejected';
+        });
+        SnackbarService.showSuccess(
+          context,
+          message: 'Connection request rejected',
+        );
+      } else {
+        throw Exception('Failed to reject request');
+      }
+    } catch (e) {
+      debugPrint('Error rejecting request: $e');
+      if (mounted) {
+        SnackbarService.showError(
+          context,
+          message: 'Failed to reject request: $e',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingRequest = false;
         });
       }
     }
@@ -341,7 +590,7 @@ class _ProfessionalProfileState extends State<ProfessionalProfile> {
               ),
             ],
           ),
-          // Call/Connect Button
+          // Connect Button
           Positioned(
             bottom: 0,
             left: 0,
@@ -358,39 +607,218 @@ class _ProfessionalProfileState extends State<ProfessionalProfile> {
                 ],
               ),
               padding: const EdgeInsets.all(24.0),
-              child: ElevatedButton(
-                onPressed: _isConnecting ? null : _connectWithProfessional,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+              child: _buildActionButton(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton() {
+    // If we're waiting for a response
+    if (_isSendingRequest) {
+      return ElevatedButton(
+        onPressed: null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: const SizedBox(
+          height: 24,
+          width: 24,
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
+
+    // If there's no existing request - show "Connect"
+    if (!_hasExistingRequest) {
+      return ElevatedButton(
+        onPressed: _sendConnectionRequest,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.connect_without_contact, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Connect',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // If this is an incoming pending request - show Accept/Reject buttons
+    if (_requestStatus == 'pending' && !_isOutgoingRequest) {
+      return Row(
+        children: [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () => _acceptRequest(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child:
-                    _isConnecting
-                        ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(color: Colors.white),
-                        )
-                        : const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.connect_without_contact, size: 24),
-                            SizedBox(width: 8),
-                            Text(
-                              'Connect',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle, size: 24),
+                  SizedBox(width: 8),
+                  Text(
+                    'Accept',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
             ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () => _rejectRequest(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.cancel, size: 24),
+                  SizedBox(width: 8),
+                  Text(
+                    'Reject',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // If request is pending (outgoing) - show "Request Sent"
+    if (_requestStatus == 'pending') {
+      return ElevatedButton(
+        onPressed: null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          disabledBackgroundColor:
+              Theme.of(context).colorScheme.primaryContainer,
+          disabledForegroundColor: Theme.of(context).colorScheme.primary,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check_circle_outline, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Request Sent',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // If request was rejected - show "Request Declined"
+    if (_requestStatus == 'rejected') {
+      return ElevatedButton(
+        onPressed: null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Theme.of(context).colorScheme.errorContainer,
+          disabledBackgroundColor: Theme.of(context).colorScheme.errorContainer,
+          disabledForegroundColor: Theme.of(context).colorScheme.error,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.cancel_outlined, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Request Declined',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // If mutual connection - show "Connect Now" button
+    if (_requestStatus == 'mutual') {
+      return ElevatedButton(
+        onPressed: _startCall,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.call, size: 24),
+            SizedBox(width: 8),
+            Text(
+              'Connect Now',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // If request was accepted but not mutual yet - show "Request Accepted"
+    return ElevatedButton(
+      onPressed: null,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+        disabledBackgroundColor:
+            Theme.of(context).colorScheme.secondaryContainer,
+        disabledForegroundColor: Theme.of(context).colorScheme.secondary,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.check_circle, size: 24),
+          SizedBox(width: 8),
+          Text(
+            'Request Accepted',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ],
       ),

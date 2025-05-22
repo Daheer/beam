@@ -23,7 +23,6 @@ class AgoraService {
   // Initialize the Agora engine
   Future<void> initialize() async {
     if (_isInitialized) {
-      debugPrint('Agora engine already initialized');
       return;
     }
 
@@ -34,8 +33,6 @@ class AgoraService {
       if (appId == null) {
         throw Exception('AGORA_APP_ID not found in environment variables');
       }
-
-      debugPrint('Initializing Agora with App ID: $appId');
 
       // Create and initialize the engine
       _engine = createAgoraRtcEngine();
@@ -58,7 +55,6 @@ class AgoraService {
       _setupEventHandlers();
       _isInitialized = true;
     } catch (e) {
-      debugPrint('Error initializing Agora: $e');
       await dispose(); // Clean up on error
       rethrow;
     }
@@ -75,7 +71,7 @@ class AgoraService {
       _isInitialized = false;
       _remoteUid = null;
     } catch (e) {
-      debugPrint('Error disposing Agora service: $e');
+      LogService.e('Error disposing Agora service', e, StackTrace.current);
     }
   }
 
@@ -84,10 +80,10 @@ class AgoraService {
     _engine?.registerEventHandler(
       RtcEngineEventHandler(
         onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
-          debugPrint("Local user ${connection.localUid} joined");
+          LogService.i("Local user ${connection.localUid} joined");
         },
         onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
-          debugPrint("Remote user $remoteUid joined");
+          LogService.i("Remote user $remoteUid joined");
           _remoteUid = remoteUid;
           _onRemoteUserJoinedController.add(remoteUid);
         },
@@ -96,22 +92,21 @@ class AgoraService {
           int remoteUid,
           UserOfflineReasonType reason,
         ) {
-          debugPrint("Remote user $remoteUid left due to $reason");
           _remoteUid = null;
           _onRemoteUserLeftController.add(remoteUid);
         },
         onError: (ErrorCodeType err, String msg) {
-          debugPrint("Agora error: $err - $msg");
+          LogService.e("Agora error: $err - $msg", StackTrace.current);
         },
         onConnectionStateChanged: (
           RtcConnection connection,
           ConnectionStateType state,
           ConnectionChangedReasonType reason,
         ) {
-          debugPrint("Connection state changed: $state, reason: $reason");
+          LogService.i("Connection state changed: $state, reason: $reason");
         },
         onTokenPrivilegeWillExpire: (RtcConnection connection, String token) {
-          debugPrint("Token will expire soon");
+          LogService.i("Token will expire soon");
           // Handle token refresh here if needed
         },
       ),
@@ -121,7 +116,7 @@ class AgoraService {
   // Request necessary permissions
   Future<bool> requestPermissions() async {
     final status = await Permission.microphone.request();
-    debugPrint('Microphone permission status: $status');
+    LogService.i('Microphone permission status: $status');
     return status.isGranted;
   }
 
@@ -132,27 +127,15 @@ class AgoraService {
     }
 
     try {
-      LogService.i('Starting joinChannel process for channel: $channelName');
-
       // Get a token if not provided
       final channelToken = await AgoraTokenService.generateToken(
         channelName,
         uid.toString(),
       );
-      LogService.i("Got token from service: $channelToken");
 
       if (channelToken == null) {
         throw Exception('Failed to generate Agora token');
       }
-
-      LogService.i('Channel Token length: ${channelToken.length}');
-      LogService.i(
-        'First 10 chars of token: ${channelToken.substring(0, 10)}...',
-      );
-
-      LogService.i(
-        'Joining channel: $channelName with UID: $uid (0 means SDK will generate random UID)',
-      );
 
       // Ensure channel name is valid for Agora
       if (channelName.isEmpty) {
@@ -170,9 +153,6 @@ class AgoraService {
           autoSubscribeAudio: true,
         ),
       );
-
-      LogService.i('Successfully joined channel: $channelName');
-      LogService.i('Connection state: ${_engine?.getConnectionState()}');
     } catch (e) {
       LogService.e('Error joining channel', e, StackTrace.current);
       rethrow;

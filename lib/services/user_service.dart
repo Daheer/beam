@@ -36,7 +36,6 @@ class UserService {
 
       // Return cached data if valid and no force refresh
       if (!forceRefresh && _isCacheValid) {
-        LogService.i('Returning cached user data');
         return _cachedUserData;
       }
 

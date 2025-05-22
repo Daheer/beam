@@ -25,6 +25,30 @@ class NotificationService {
   // Initialize the service
   Future<void> initialize() async {
     try {
+      // Request permissions for ALL platforms
+      try {
+        NotificationSettings settings = await _messaging.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+          provisional: false,
+          criticalAlert: true,
+          announcement: true,
+        );
+
+        debugPrint(
+          'User notification permission status: ${settings.authorizationStatus}',
+        );
+
+        if (settings.authorizationStatus != AuthorizationStatus.authorized) {
+          debugPrint(
+            'User declined or has not accepted notification permissions',
+          );
+        }
+      } catch (e) {
+        debugPrint('Error requesting notification permissions: $e');
+      }
+
       // Setup notification channels for Android
       if (Platform.isAndroid) {
         try {
@@ -35,46 +59,31 @@ class NotificationService {
         }
       }
 
-      // Request permission on iOS
+      // iOS: Get APNS token first - this is required before getting FCM token
       if (Platform.isIOS) {
         try {
-          NotificationSettings settings = await _messaging.requestPermission(
-            alert: true,
-            badge: true,
-            sound: true,
-            provisional: false,
-            criticalAlert: true,
-          );
+          String? apnsToken = await _messaging.getAPNSToken();
+          debugPrint('Initial APNS Token: $apnsToken');
 
-          if (settings.authorizationStatus != AuthorizationStatus.authorized) {
-            debugPrint(
-              'User declined or has not accepted notifications permission',
-            );
-          }
+          // If APNS token is null, wait and try again
+          if (apnsToken == null) {
+            // Wait for 3 seconds
+            await Future.delayed(const Duration(seconds: 3));
+            apnsToken = await _messaging.getAPNSToken();
+            debugPrint('APNS Token after delay: $apnsToken');
 
-          // iOS: Get APNS token first - this is required before getting FCM token
-          try {
-            String? apnsToken = await _messaging.getAPNSToken();
-            debugPrint('APNS Token: $apnsToken');
-
-            // Check if we're on a simulator (APNS token will be null)
+            // Check if we're on a simulator
             if (apnsToken == null) {
               _isSimulator = true;
               debugPrint(
                 'Running on iOS simulator - push notifications will not work',
               );
-            } else {
-              // Wait a moment to ensure APNS token is properly registered
-              await Future.delayed(const Duration(seconds: 1));
             }
-          } catch (e) {
-            debugPrint('Error getting APNS token: $e');
-            // Assume we might be on a simulator if there's an error
-            _isSimulator = true;
           }
         } catch (e) {
-          debugPrint('Error requesting iOS notification permissions: $e');
-          // Continue even if permissions fail
+          debugPrint('Error getting APNS token: $e');
+          // Assume we might be on a simulator if there's an error
+          _isSimulator = true;
         }
       }
 
@@ -118,38 +127,84 @@ class NotificationService {
 
   // Create Android notification channel for calls
   Future<void> _createAndroidNotificationChannel() async {
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'high_importance_channel',
-      'Call Notifications',
-      description: 'This channel is used for call notifications',
-      importance: Importance.high,
-      enableVibration: true,
-      playSound: true,
-      sound: RawResourceAndroidNotificationSound('call_ringtone'),
-    );
+    try {
+      debugPrint('Creating Android notification channels');
 
-    await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(channel);
+      // Create channel for calls
+      const AndroidNotificationChannel callChannel = AndroidNotificationChannel(
+        'high_importance_channel',
+        'Call Notifications',
+        description: 'This channel is used for call notifications',
+        importance: Importance.high,
+        enableVibration: true,
+        playSound: true,
+        sound: RawResourceAndroidNotificationSound('call_ringtone'),
+      );
 
-    // Initialize local notifications
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@drawable/ic_notification');
+      // Create channel for interest requests
+      const AndroidNotificationChannel interestChannel =
+          AndroidNotificationChannel(
+            'interest_channel',
+            'Interest Request Notifications',
+            description:
+                'This channel is used for interest request notifications',
+            importance: Importance.high,
+            enableVibration: true,
+            playSound: true,
+          );
 
-    final InitializationSettings initializationSettings =
-        InitializationSettings(android: initializationSettingsAndroid);
+      // Get plugin
+      final androidPlugin =
+          flutterLocalNotificationsPlugin
+              .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin
+              >();
 
-    await flutterLocalNotificationsPlugin.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: (
-        NotificationResponse notificationResponse,
-      ) {
-        // Handle notification tap
-        debugPrint('Notification tapped: ${notificationResponse.payload}');
-      },
-    );
+      if (androidPlugin != null) {
+        await androidPlugin.createNotificationChannel(callChannel);
+        await androidPlugin.createNotificationChannel(interestChannel);
+        debugPrint('Android notification channels created successfully');
+      } else {
+        debugPrint('Could not resolve Android notification plugin');
+      }
+
+      // Initialize local notifications
+      const AndroidInitializationSettings initializationSettingsAndroid =
+          AndroidInitializationSettings('@drawable/ic_notification');
+
+      final DarwinInitializationSettings initializationSettingsIOS =
+          DarwinInitializationSettings(
+            requestAlertPermission: true,
+            requestBadgePermission: true,
+            requestSoundPermission: true,
+            onDidReceiveLocalNotification: (id, title, body, payload) {
+              debugPrint(
+                'Received local notification: $id, $title, $body, $payload',
+              );
+              return;
+            },
+          );
+
+      final InitializationSettings initializationSettings =
+          InitializationSettings(
+            android: initializationSettingsAndroid,
+            iOS: initializationSettingsIOS,
+          );
+
+      final success = await flutterLocalNotificationsPlugin.initialize(
+        initializationSettings,
+        onDidReceiveNotificationResponse: (
+          NotificationResponse notificationResponse,
+        ) {
+          // Handle notification tap
+          debugPrint('Notification tapped: ${notificationResponse.payload}');
+        },
+      );
+
+      debugPrint('Notification plugin initialization result: $success');
+    } catch (e) {
+      debugPrint('Error initializing notification channels: $e');
+    }
   }
 
   // Save FCM token to Firestore for the current user
@@ -239,29 +294,222 @@ class NotificationService {
     }
   }
 
+  // Send interest request notification
+  Future<void> sendInterestNotification({
+    required String receiverId,
+    required String senderName,
+    required String requestId,
+    String? title,
+    String? body,
+  }) async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        debugPrint('No authenticated user found');
+        return;
+      }
+
+      debugPrint('Sending notification from ${currentUser.uid} to $receiverId');
+      debugPrint('Title: $title');
+      debugPrint('Body: $body');
+
+      // Get receiver's FCM token
+      final receiverDoc =
+          await _firestore.collection('users').doc(receiverId).get();
+      if (!receiverDoc.exists) {
+        debugPrint('Receiver document does not exist: $receiverId');
+        return;
+      }
+
+      final receiverData = receiverDoc.data();
+      if (receiverData == null || !receiverData.containsKey('fcmToken')) {
+        debugPrint('Receiver FCM token not found for user: $receiverId');
+        return;
+      }
+
+      final fcmToken = receiverData['fcmToken'] as String?;
+      if (fcmToken == null || fcmToken.isEmpty) {
+        debugPrint('Invalid FCM token for user: $receiverId');
+        return;
+      }
+
+      debugPrint('Found FCM token for receiver: $receiverId');
+
+      // Create notification data
+      final data = {
+        'token': fcmToken,
+        'notification': {
+          'title': title ?? 'New Interest Request',
+          'body': body ?? '$senderName is interested in connecting with you',
+        },
+        'data': {
+          'type': 'interest_request',
+          'requestId': requestId,
+          'senderId': currentUser.uid,
+          'senderName': senderName,
+          'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+        },
+        'android': {
+          'priority': 'high',
+          'notification': {
+            'channel_id': 'interest_channel',
+            'priority': 'high',
+          },
+        },
+        'apns': {
+          'headers': {'apns-priority': '5'},
+          'payload': {
+            'aps': {
+              'sound': 'default',
+              'category': 'interest',
+              'content-available': 1,
+            },
+          },
+        },
+      };
+
+      // Store the notification in Firestore
+      await _firestore.collection('notifications').add({
+        'to': fcmToken,
+        'message': data,
+        'createdAt': FieldValue.serverTimestamp(),
+        'processed': false,
+      });
+
+      debugPrint('Notification stored in Firestore for processing');
+
+      // Show a local notification if the receiver is using the app
+      // and it's not a self-notification
+      if (receiverId != currentUser.uid) {
+        debugPrint('Showing local notification for receiver: $receiverId');
+        _showForegroundNotification(
+          title:
+              (data['notification'] as Map<String, dynamic>)['title'] as String,
+          body:
+              (data['notification'] as Map<String, dynamic>)['body'] as String,
+          payload:
+              '{"type":"interest_request","requestId":"$requestId","senderId":"${currentUser.uid}","senderName":"$senderName"}',
+        );
+      } else {
+        debugPrint(
+          'Skipping local notification as sender and receiver are the same',
+        );
+      }
+    } catch (e) {
+      debugPrint('Error sending interest notification: $e');
+    }
+  }
+
   // Handle incoming notifications in foreground
   void setupForegroundNotificationHandling() {
     try {
       FirebaseMessaging.onMessage.listen(
         (RemoteMessage message) {
-          // When a message arrives, the app will handle it
-          // No need to display a notification as the app is in foreground
-          // You can process the data or trigger events based on the notification
-          debugPrint('Got a message whilst in the foreground!');
+          // When a message arrives in the foreground, display a notification
+          debugPrint('Got a foreground message: ${message.messageId}');
           debugPrint('Message data: ${message.data}');
+          debugPrint(
+            'Notification: ${message.notification?.title}, ${message.notification?.body}',
+          );
 
+          String title = '';
+          String body = '';
+
+          // Get title and body from notification or data payload
           if (message.notification != null) {
-            debugPrint(
-              'Message also contained a notification: ${message.notification}',
-            );
+            title = message.notification!.title ?? 'New Notification';
+            body = message.notification!.body ?? 'You have a new notification';
+            debugPrint('Using notification data for alert: $title, $body');
+          } else if (message.data.containsKey('title') &&
+              message.data.containsKey('body')) {
+            title = message.data['title'];
+            body = message.data['body'];
+            debugPrint('Using data payload for alert: $title, $body');
+          } else {
+            title = 'New Message';
+            body = 'You received a new message';
+            debugPrint('Using default alert text');
           }
+
+          // Always show a notification when a message is received in foreground
+          _showForegroundNotification(
+            title: title,
+            body: body,
+            payload: message.data.toString(),
+          );
         },
         onError: (error) {
           debugPrint('Error in foreground message handling: $error');
         },
       );
+
+      // Also initialize the notification tap handler
+      _setupNotificationTapHandling();
+
+      debugPrint('Foreground notification handling setup complete');
     } catch (e) {
       debugPrint('Error setting up foreground message handler: $e');
     }
+  }
+
+  // Setup handling for notification taps
+  void _setupNotificationTapHandling() {
+    flutterLocalNotificationsPlugin.initialize(
+      const InitializationSettings(
+        android: AndroidInitializationSettings('@drawable/ic_notification'),
+        iOS: DarwinInitializationSettings(),
+      ),
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        debugPrint('Notification tapped with payload: ${response.payload}');
+
+        // Try to parse the payload and handle accordingly
+        try {
+          if (response.payload != null) {
+            final data = response.payload!;
+            if (data.contains('interest_request')) {
+              debugPrint('Interest request notification tapped');
+
+              // The navigation will need to be handled elsewhere since we don't have context here
+              // But we can broadcast an event that can be listened to in the app
+            }
+          }
+        } catch (e) {
+          debugPrint('Error handling notification tap: $e');
+        }
+      },
+    );
+  }
+
+  // Show a local notification when the app is in foreground
+  Future<void> _showForegroundNotification({
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          'high_importance_channel',
+          'Important Notifications',
+          importance: Importance.max,
+          priority: Priority.high,
+          showWhen: true,
+        );
+
+    const NotificationDetails platformDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
+
+    await flutterLocalNotificationsPlugin.show(
+      DateTime.now().millisecond,
+      title,
+      body,
+      platformDetails,
+      payload: payload,
+    );
   }
 }

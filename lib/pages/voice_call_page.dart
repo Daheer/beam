@@ -2,11 +2,13 @@
 
 import 'package:beam/services/log_service.dart';
 import 'package:flutter/material.dart';
+import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import '../services/agora_service.dart';
 import '../services/call_service.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/snackbar_service.dart';
+import '../services/connection_request_service.dart';
 
 class VoiceCallPage extends StatefulWidget {
   final String channelName;
@@ -27,6 +29,10 @@ class VoiceCallPage extends StatefulWidget {
 class _VoiceCallPageState extends State<VoiceCallPage> {
   final _agoraService = AgoraService();
   final _callService = CallService();
+  final _connectionService = ConnectionRequestService();
+  final _firestore = FirebaseFirestore.instance;
+  bool _isMutualConnection = false;
+  bool _isVerifyingMutualConnection = true;
   bool _isMuted = false;
   Set<int> _remoteUsers = {};
   bool _isCallConnected = false;
@@ -35,12 +41,21 @@ class _VoiceCallPageState extends State<VoiceCallPage> {
   Duration _callDuration = Duration.zero;
   String _remoteUserName = '';
   String _remoteProfession = '';
+  bool _hasSharedContact = false;
   static const int callTimeoutSeconds = 15; // Timeout after 15 seconds
+
+  int? _remoteUid;
+  bool _localUserJoined = false;
+  bool _isLocalMuted = false;
+  bool _isSpeakerEnabled = true;
+  RtcEngine? _engine;
+  Timer? _callTimer;
+  StreamSubscription<DocumentSnapshot>? _callSubscription;
 
   @override
   void initState() {
     super.initState();
-    _initializeCall();
+    _verifyMutualConnection();
     _loadRemoteUserInfo();
   }
 
@@ -81,6 +96,36 @@ class _VoiceCallPageState extends State<VoiceCallPage> {
     String minutes = twoDigits(duration.inMinutes.remainder(60));
     String seconds = twoDigits(duration.inSeconds.remainder(60));
     return '$hours$minutes:$seconds';
+  }
+
+  Future<void> _verifyMutualConnection() async {
+    try {
+      final canCall = await _connectionService.canCall(widget.remoteUserId);
+      if (mounted) {
+        setState(() {
+          _isMutualConnection = canCall;
+          _isVerifyingMutualConnection = false;
+        });
+      }
+
+      if (_isMutualConnection || widget.isIncoming) {
+        // Only initialize call if mutual connection verified or this is an incoming call
+        _initializeCall();
+      } else {
+        SnackbarService.showError(
+          context,
+          message: 'Cannot call: Mutual connection required',
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      LogService.e('Error verifying mutual connection', e, StackTrace.current);
+      if (mounted) {
+        setState(() {
+          _isVerifyingMutualConnection = false;
+        });
+      }
+    }
   }
 
   Future<void> _initializeCall() async {
@@ -128,8 +173,6 @@ class _VoiceCallPageState extends State<VoiceCallPage> {
       // End call when remote user leaves
       _onCallEnd(reason: 'Remote user ended the call');
     });
-
-    LogService.i('joining channel: ${widget.channelName}');
 
     if (widget.isIncoming) {
       // Update call status to ringing for incoming calls
@@ -192,6 +235,34 @@ class _VoiceCallPageState extends State<VoiceCallPage> {
     await _agoraService.leaveChannel();
     if (mounted) {
       Navigator.pop(context);
+    }
+  }
+
+  void _onShareContact() async {
+    try {
+      final success = await _callService.shareContact(
+        widget.channelName,
+        widget.remoteUserId,
+      );
+
+      if (success && mounted) {
+        setState(() {
+          _hasSharedContact = true;
+        });
+        SnackbarService.showSuccess(
+          context,
+          message: 'Contact shared successfully',
+        );
+      } else if (mounted) {
+        SnackbarService.showError(context, message: 'Failed to share contact');
+      }
+    } catch (e) {
+      if (mounted) {
+        SnackbarService.showError(
+          context,
+          message: 'Error sharing contact: $e',
+        );
+      }
     }
   }
 
@@ -362,6 +433,28 @@ class _VoiceCallPageState extends State<VoiceCallPage> {
                                   ).colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 24),
+                        // Share contact button
+                        if (!_hasSharedContact)
+                          ElevatedButton.icon(
+                            onPressed: _onShareContact,
+                            icon: const Icon(Icons.share),
+                            label: const Text('Share Contact'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.primaryContainer,
+                              foregroundColor:
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        if (!_hasSharedContact) const SizedBox(width: 24),
                       ],
                       // End/Reject call button
                       _CallButton(

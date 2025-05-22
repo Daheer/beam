@@ -6,18 +6,19 @@ import 'package:logger/logger.dart';
 class LogService {
   static final Logger _logger = Logger(
     printer: PrettyPrinter(
-      methodCount: 2,
-      errorMethodCount: 8,
-      lineLength: 120,
-      colors: !kIsWeb, // Colors don't work well on web
-      printEmojis: true,
+      methodCount: 0, // Don't show method count
+      errorMethodCount: 5, // Show more methods for errors
+      lineLength: 80, // Shorter line length
+      colors: false, // Disable colors to prevent ANSI codes
+      printEmojis: false, // Disable emojis
+      noBoxingByDefault: true, // Disable boxes around log messages
     ),
     level: kReleaseMode ? Level.warning : Level.verbose,
   );
 
   // For persistent logging to file in production
   static final Logger _fileLogger = Logger(
-    printer: SimplePrinter(),
+    printer: SimplePrinter(printTime: true, colors: false),
     level: Level.warning,
   );
 

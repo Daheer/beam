@@ -15,6 +15,10 @@ import 'voice_call_page.dart';
 import 'activity_history_page.dart';
 import '../services/snackbar_service.dart';
 import '../services/log_service.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/connection_request_service.dart';
+import 'dart:convert';
 
 // Call button widget for both incoming call dialog and call page
 class _CallButton extends StatelessWidget {
@@ -58,27 +62,138 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
-  final _userService = UserService();
-  final _callService = CallService();
-  bool isBeaming = false;
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
+  final UserService _userService = UserService();
+  final CallService _callService = CallService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final ConnectionRequestService _connectionService =
+      ConnectionRequestService();
+  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
+  List<Map<String, dynamic>> _nearbyUsers = [];
   bool _isLoading = true;
-  List<Map<String, dynamic>> professionals = [];
+  bool _isLocationEnabled = false;
+  StreamSubscription<QuerySnapshot>? _incomingCallsSubscription;
+  StreamSubscription<QuerySnapshot>? _interestRequestsSubscription;
+  bool isBeaming = false;
   StreamSubscription? _callSubscription;
+  StreamSubscription<QuerySnapshot>? _connectionRequestsSubscription;
+  int _pendingRequestsCount = 0;
 
   @override
   void initState() {
     super.initState();
+
+    // Add app lifecycle observer
+    WidgetsBinding.instance.addObserver(this);
+
     _loadUserStatus();
     _loadNearbyUsers();
+    _initializeNotifications();
     _listenForIncomingCalls();
-    _checkForInitialMessage();
+    _setupInterestRequestListener();
+    _setupConnectionRequestListener();
+    _loadPendingRequestsCount();
+
+    // Check for any pending interest requests when the app starts
+    _checkForPendingRequests();
+
+    // Set up notification handling
+    FirebaseMessaging.instance.getInitialMessage().then((
+      RemoteMessage? message,
+    ) {
+      if (message != null) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          NotificationPayloadHandler.handle(context, json.encode(message.data));
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _callSubscription?.cancel();
+    _incomingCallsSubscription?.cancel();
+    _interestRequestsSubscription?.cancel();
+    _connectionRequestsSubscription?.cancel();
+
+    // Remove app lifecycle observer
+    WidgetsBinding.instance.removeObserver(this);
+
     super.dispose();
+  }
+
+  // Handle app lifecycle changes
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // App came to foreground - check for pending requests
+      _checkForPendingRequests();
+    }
+  }
+
+  // Check for pending interest requests
+  void _checkForPendingRequests() {
+    _connectionService.checkForPendingRequests((
+      senderId,
+      senderName,
+      requestId,
+    ) {
+      _showInterestRequestNotification(
+        senderId: senderId,
+        senderName: senderName,
+        requestId: requestId,
+      );
+    });
+  }
+
+  // Set up real-time listener for interest requests
+  void _setupInterestRequestListener() {
+    _connectionRequestsSubscription = _connectionService
+        .getNewConnectionRequests()
+        .listen(
+          (snapshot) async {
+            // Only process added documents (new requests)
+            for (var change in snapshot.docChanges) {
+              if (change.type == DocumentChangeType.added) {
+                final requestData = change.doc.data() as Map<String, dynamic>;
+                final senderId = requestData['senderId'] as String;
+
+                try {
+                  // Get sender info
+                  final senderDoc =
+                      await _firestore.collection('users').doc(senderId).get();
+                  if (senderDoc.exists) {
+                    final senderData = senderDoc.data() as Map<String, dynamic>;
+                    final senderName = senderData['name'] ?? 'Someone';
+
+                    // Show local notification
+                    _showInterestRequestNotification(
+                      senderId: senderId,
+                      senderName: senderName,
+                      requestId: change.doc.id,
+                    );
+                  }
+                } catch (e) {
+                  LogService.e(
+                    'Error processing interest request notification',
+                    e,
+                    StackTrace.current,
+                  );
+                }
+              }
+            }
+          },
+          onError: (error) {
+            LogService.e(
+              'Error listening for interest requests',
+              error,
+              StackTrace.current,
+            );
+          },
+        );
   }
 
   void _listenForIncomingCalls() {
@@ -331,7 +446,7 @@ class _HomePageState extends State<HomePage> {
       final nearbyUsers = await _userService.getNearbyUsers(radiusInKm: 100.0);
 
       setState(() {
-        professionals = nearbyUsers;
+        _nearbyUsers = nearbyUsers;
         _isLoading = false;
       });
     } catch (e) {
@@ -342,23 +457,215 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _checkForInitialMessage() async {
-    try {
-      // Check if the app was opened from a notification
-      RemoteMessage? initialMessage =
-          await FirebaseMessaging.instance.getInitialMessage();
+  Future<void> _initializeNotifications() async {
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@drawable/ic_notification');
+    const DarwinInitializationSettings initializationSettingsIOS =
+        DarwinInitializationSettings();
+    const InitializationSettings initializationSettings =
+        InitializationSettings(
+          android: initializationSettingsAndroid,
+          iOS: initializationSettingsIOS,
+        );
 
-      if (initialMessage != null && mounted) {
-        // Handle the initial message
-        handleNotificationPayload(context, initialMessage.data);
-      }
+    // Initialize with notification tap callback
+    await _flutterLocalNotificationsPlugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        if (response.payload != null && mounted) {
+          NotificationPayloadHandler.handle(context, response.payload!);
+        }
+      },
+    );
+
+    // Handle notification that launched the app
+    final NotificationAppLaunchDetails? launchDetails =
+        await _flutterLocalNotificationsPlugin
+            .getNotificationAppLaunchDetails();
+    if (launchDetails != null &&
+        launchDetails.didNotificationLaunchApp &&
+        launchDetails.notificationResponse?.payload != null &&
+        mounted) {
+      NotificationPayloadHandler.handle(
+        context,
+        launchDetails.notificationResponse!.payload!,
+      );
+    }
+  }
+
+  // Show local notification for interest request
+  Future<void> _showInterestRequestNotification({
+    required String senderId,
+    required String senderName,
+    required String requestId,
+  }) async {
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          'interest_channel',
+          'Interest Request Notifications',
+          channelDescription: 'Notifications for new interest requests',
+          importance: Importance.high,
+          priority: Priority.high,
+          showWhen: true,
+        );
+
+    const NotificationDetails platformDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
+
+    try {
+      await _flutterLocalNotificationsPlugin.show(
+        requestId.hashCode, // Use hash of requestId as notification ID
+        'New Interest Request',
+        '$senderName is interested in connecting with you',
+        platformDetails,
+        payload:
+            '{"type":"interest_request","senderId":"$senderId","requestId":"$requestId"}',
+      );
     } catch (e) {
       LogService.e(
-        'Error checking for initial notification message',
+        'Error showing interest request notification',
         e,
         StackTrace.current,
       );
-      // Continue without checking for initial message
+    }
+  }
+
+  // Set up real-time listener for connection requests
+  void _setupConnectionRequestListener() {
+    _connectionRequestsSubscription = _connectionService
+        .getNewConnectionRequests()
+        .listen(
+          (snapshot) async {
+            // Update pending requests count
+            if (mounted) {
+              setState(() {
+                _pendingRequestsCount = snapshot.docs.length;
+              });
+            }
+
+            // Only process added documents (new requests)
+            for (var change in snapshot.docChanges) {
+              if (change.type == DocumentChangeType.added) {
+                final requestData = change.doc.data() as Map<String, dynamic>;
+                final senderId = requestData['senderId'] as String;
+
+                try {
+                  // Get sender info
+                  final senderDoc =
+                      await _firestore.collection('users').doc(senderId).get();
+                  if (senderDoc.exists) {
+                    final senderData = senderDoc.data() as Map<String, dynamic>;
+                    final senderName = senderData['name'] ?? 'Someone';
+
+                    // Show local notification
+                    _showConnectionRequestNotification(
+                      senderId: senderId,
+                      senderName: senderName,
+                      requestId: change.doc.id,
+                    );
+                  }
+                } catch (e) {
+                  LogService.e(
+                    'Error processing connection request notification',
+                    e,
+                    StackTrace.current,
+                  );
+                }
+              }
+            }
+          },
+          onError: (error) {
+            LogService.e(
+              'Error listening for connection requests',
+              error,
+              StackTrace.current,
+            );
+          },
+        );
+  }
+
+  // Show local notification for connection request
+  Future<void> _showConnectionRequestNotification({
+    required String senderId,
+    required String senderName,
+    required String requestId,
+  }) async {
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+          'connection_channel',
+          'Connection Request Notifications',
+          channelDescription: 'Notifications for new connection requests',
+          importance: Importance.high,
+          priority: Priority.high,
+          showWhen: true,
+          enableVibration: true,
+          playSound: true,
+          fullScreenIntent: true,
+        );
+
+    const NotificationDetails platformDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
+
+    try {
+      final payload = json.encode({
+        'type': 'connection_request',
+        'senderId': senderId,
+        'requestId': requestId,
+        'senderName': senderName,
+      });
+
+      await _flutterLocalNotificationsPlugin.show(
+        requestId.hashCode,
+        'New Connection Request',
+        '$senderName wants to connect with you',
+        platformDetails,
+        payload: payload,
+      );
+    } catch (e) {
+      LogService.e(
+        'Error showing connection request notification',
+        e,
+        StackTrace.current,
+      );
+    }
+  }
+
+  Future<void> _loadPendingRequestsCount() async {
+    try {
+      final userId = _auth.currentUser?.uid;
+      if (userId == null) return;
+
+      // Get count of pending requests where user is the receiver
+      final pendingRequests =
+          await _firestore
+              .collection('connectionRequests')
+              .where('receiverId', isEqualTo: userId)
+              .where('status', isEqualTo: 'pending')
+              .get();
+
+      if (mounted) {
+        setState(() {
+          _pendingRequestsCount = pendingRequests.docs.length;
+        });
+      }
+    } catch (e) {
+      LogService.e(
+        'Error loading pending requests count',
+        e,
+        StackTrace.current,
+      );
     }
   }
 
@@ -370,18 +677,44 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: Text('Beam'),
         centerTitle: true,
-        leading: IconButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const ActivityHistoryPage(),
+        leading: Stack(
+          children: [
+            IconButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ActivityHistoryPage(),
+                  ),
+                );
+              },
+              icon: Icon(Icons.notifications_outlined),
+              alignment: Alignment.topLeft,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            if (_pendingRequestsCount > 0)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  padding: EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.error,
+                    shape: BoxShape.circle,
+                  ),
+                  constraints: BoxConstraints(minWidth: 20, minHeight: 20),
+                  child: Text(
+                    _pendingRequestsCount.toString(),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onError,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ),
-            );
-          },
-          icon: Icon(Icons.history),
-          alignment: Alignment.topLeft,
-          color: Theme.of(context).colorScheme.primary,
+          ],
         ),
         actions: [
           IconButton(
@@ -425,7 +758,7 @@ class _HomePageState extends State<HomePage> {
                         color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
-                    if (!_isLoading && professionals.isNotEmpty)
+                    if (!_isLoading && _nearbyUsers.isNotEmpty)
                       TextButton(
                         onPressed: () {
                           try {
@@ -434,7 +767,7 @@ class _HomePageState extends State<HomePage> {
                                 [];
 
                             // Validate each professional item before adding to the copy
-                            for (var prof in professionals) {
+                            for (var prof in _nearbyUsers) {
                               // Ensure all required fields are present
                               final validatedProf = <String, dynamic>{
                                 'name': prof['name'] ?? 'Unknown',
@@ -495,15 +828,15 @@ class _HomePageState extends State<HomePage> {
               ),
               if (_isLoading)
                 Expanded(child: Center(child: CircularProgressIndicator()))
-              else if (professionals.isNotEmpty)
+              else if (_nearbyUsers.isNotEmpty)
                 Expanded(
                   child: ListView.builder(
                     padding: EdgeInsets.only(
                       bottom: MediaQuery.of(context).padding.bottom,
                     ),
-                    itemCount: professionals.length,
+                    itemCount: _nearbyUsers.length,
                     itemBuilder: (context, index) {
-                      final professional = professionals[index];
+                      final professional = _nearbyUsers[index];
                       return NearbyProfessionalCard(info: professional);
                     },
                   ),

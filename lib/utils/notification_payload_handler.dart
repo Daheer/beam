@@ -1,28 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/snackbar_service.dart';
+import '../pages/activity_history_page.dart';
+import 'dart:convert';
 
 /// Handle a notification payload when the app is opened from a terminated state
-Future<void> handleNotificationPayload(
-  BuildContext context,
-  Map<String, dynamic>? data,
-) async {
-  if (data == null) return;
+class NotificationPayloadHandler {
+  static final _firestore = FirebaseFirestore.instance;
 
-  if (data.containsKey('type') && data['type'] == 'call') {
-    final String? channelName = data['channelName'];
-    final String? callerId = data['callerId'];
-    final String? callerName = data['callerName'];
+  static Future<void> handle(BuildContext context, String payload) async {
+    try {
+      final data = Map<String, dynamic>.from(json.decode(payload));
+      final senderId = data['senderId'] as String;
+      final requestId = data['requestId'] as String;
 
-    if (channelName != null && callerId != null) {
-      // The call might have ended if the notification was received a while ago
-      // HomePage listens to active calls, so it will automatically handle this
-      // if the call is still active
-
-      // Inform the user about the missed call if needed
-      SnackbarService.showInfo(
+      // For all notification types, navigate to activity history page
+      Navigator.push(
         context,
-        message: 'You have a call from $callerName',
+        MaterialPageRoute(
+          builder:
+              (context) =>
+                  ActivityHistoryPage(notificationRequestId: requestId),
+        ),
       );
+
+      // Show additional info for connection requests
+      if (data['type'] == 'connection_request') {
+        // Get sender info
+        final senderDoc =
+            await _firestore.collection('users').doc(senderId).get();
+        final senderData = senderDoc.data() ?? {};
+        final senderName = senderData['name'] ?? 'Someone';
+
+        // Show a toast message about the connection request
+        SnackbarService.showInfo(
+          context,
+          message: '$senderName wants to connect with you',
+        );
+      }
+    } catch (e) {
+      debugPrint('Error handling notification payload: $e');
     }
   }
 }
