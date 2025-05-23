@@ -143,13 +143,17 @@ class _AllProfessionalsState extends State<AllProfessionals> {
                                       return Container(
                                         height: 140,
                                         width: double.infinity,
-                                        color: Colors.grey.shade300,
-                                        child: const Center(
-                                          child: Icon(
-                                            Icons.person,
-                                            size: 50,
-                                            color: Colors.grey,
-                                          ),
+                                        color:
+                                            Theme.of(
+                                              context,
+                                            ).colorScheme.primaryContainer,
+                                        child: Icon(
+                                          Icons.person,
+                                          size: 50,
+                                          color:
+                                              Theme.of(
+                                                context,
+                                              ).colorScheme.primary,
                                         ),
                                       );
                                     },

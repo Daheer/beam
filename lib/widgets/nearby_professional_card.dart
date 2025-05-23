@@ -52,11 +52,29 @@ class _NearbyProfessionalCardState extends State<NearbyProfessionalCard> {
             ),
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                widget.info['image'] ?? '',
+              child: Container(
                 width: 48,
                 height: 48,
-                fit: BoxFit.cover,
+                color: Theme.of(context).colorScheme.primaryContainer,
+                child:
+                    widget.info['image']?.isNotEmpty == true
+                        ? Image.network(
+                          widget.info['image'],
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder:
+                              (context, error, stackTrace) => Icon(
+                                Icons.person,
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 24,
+                              ),
+                        )
+                        : Icon(
+                          Icons.person,
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 24,
+                        ),
               ),
             ),
             trailing: Row(

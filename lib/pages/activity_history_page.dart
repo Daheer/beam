@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 
+import 'dart:async';
 import 'package:beam/services/log_service.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -30,6 +31,8 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage>
   List<Map<String, dynamic>> _activities = [];
   late TabController _tabController;
   String _processingRequestId = '';
+  StreamSubscription<QuerySnapshot>? _requestsSubscription;
+  StreamSubscription<QuerySnapshot>? _connectionsSubscription;
 
   @override
   void initState() {
@@ -41,20 +44,65 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage>
       _tabController.index = 0;
     }
 
-    _loadActivities();
-
     // Listen for changes to reload activities
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
-        _loadActivities();
+        _setupListeners();
       }
     });
+
+    _setupListeners();
   }
 
   @override
   void dispose() {
+    _requestsSubscription?.cancel();
+    _connectionsSubscription?.cancel();
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _setupListeners() {
+    // Cancel existing subscriptions
+    _requestsSubscription?.cancel();
+    _connectionsSubscription?.cancel();
+
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
+
+    if (_tabController.index == 0) {
+      // Listen for connection requests
+      _requestsSubscription = _firestore
+          .collection('connectionRequests')
+          .where(
+            Filter.or(
+              Filter('senderId', isEqualTo: userId),
+              Filter('receiverId', isEqualTo: userId),
+            ),
+          )
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .listen((snapshot) async {
+            await _loadConnectionRequests(userId);
+          });
+    } else {
+      // Listen for established connections
+      _connectionsSubscription = _firestore
+          .collection('connectionRequests')
+          .where(
+            Filter.or(
+              Filter('senderId', isEqualTo: userId),
+              Filter('receiverId', isEqualTo: userId),
+            ),
+          )
+          .where('status', isEqualTo: 'accepted')
+          .where('hasCalledBefore', isEqualTo: true)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .listen((snapshot) async {
+            await _loadConnections(userId);
+          });
+    }
   }
 
   Future<void> _loadActivities() async {
@@ -564,8 +612,8 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage>
         );
       }
 
-      // Show accept/reject buttons only for incoming pending requests
-      if (!isOutgoing && status == 'pending') {
+      // Show accept/reject buttons only for incoming pending requests in the connections tab
+      if (!isOutgoing && status == 'pending' && _tabController.index == 0) {
         return SizedBox(
           width: 96,
           child: Row(
@@ -595,7 +643,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage>
         return IconButton(
           constraints: const BoxConstraints(minWidth: 40),
           padding: EdgeInsets.zero,
-          icon: const Icon(Icons.call, color: Colors.green),
+          icon: Icon(Icons.call, color: Colors.green.shade600),
           onPressed: () => _startCall(otherUser['id']),
           tooltip: 'Start call',
         );
@@ -661,10 +709,16 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage>
                   otherUser['profession'],
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.7),
+                  ),
                 ),
               const SizedBox(height: 2),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.location_on_outlined,
@@ -679,6 +733,31 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage>
                       color: Theme.of(context).colorScheme.secondary,
                     ),
                   ),
+                  if (otherUser['experience']?.isNotEmpty == true) ...[
+                    Text(
+                      ' • ',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
+                    ),
+                    Text(
+                      otherUser['experience'],
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
+                    ),
+                    Text(
+                      int.parse(otherUser['experience']) > 1
+                          ? ' years '
+                          : ' year ',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.secondary,
+                      ),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 2),
@@ -819,7 +898,12 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage>
                     profession,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.7),
+                    ),
                   ),
                 const SizedBox(height: 2),
                 Row(

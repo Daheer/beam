@@ -109,23 +109,13 @@ class _LoginPageState extends State<LoginPage> {
                 Center(
                   child: Image.asset(
                     'assets/icon/splash_icon.png',
-                    width: 180,
-                    height: 180,
+                    width: 250,
+                    height: 250,
                     color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
-                // const SizedBox(height: 2),
                 Text(
-                  'Welcome Back',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Sign in to continue',
+                  'Login • Sign in to continue',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: Theme.of(context).colorScheme.secondary,
                   ),
@@ -134,6 +124,9 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 40),
                 TextFormField(
                   controller: _emailController,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     labelText: 'Email',
@@ -158,6 +151,9 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 20),
                 TextFormField(
                   controller: _passwordController,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                   obscureText: !_isPasswordVisible,
                   decoration: InputDecoration(
                     labelText: 'Password',

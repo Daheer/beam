@@ -13,6 +13,9 @@ import '../pages/login_page.dart';
 import '../services/upload_service.dart';
 import '../services/user_service.dart';
 import '../services/snackbar_service.dart';
+import '../pages/quiz_page.dart';
+import '../pages/quiz_result_page.dart';
+import '../models/profession.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -455,28 +458,50 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
   }
 
-  Future<void> _showProfessionDialog() async {
-    final controller = TextEditingController(
-      text: _userData['profession'] ?? '',
-    );
+  Future<void> _showConfirmationDialog({
+    required String title,
+    required String message,
+    required VoidCallback onConfirm,
+  }) async {
     return showDialog(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Update Profession'),
+            title: Text(
+              title,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+            ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Changing your profession will require verification. Please enter your new profession:',
-                  style: TextStyle(fontSize: 14),
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: controller,
-                  decoration: const InputDecoration(
-                    labelText: 'Profession',
-                    border: OutlineInputBorder(),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.orange.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'You will need to pass a verification test to confirm your knowledge in the field.',
+                          style: TextStyle(fontSize: 14, color: Colors.white70),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -484,80 +509,336 @@ class _UserProfilePageState extends State<UserProfilePage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
               ),
               FilledButton(
                 onPressed: () {
-                  if (controller.text.isNotEmpty) {
-                    setState(() {
-                      _userData['profession'] = controller.text;
-                    });
-                    Navigator.pop(context);
-                  }
+                  Navigator.pop(context);
+                  onConfirm();
                 },
-                child: const Text('Update'),
+                child: const Text('Continue'),
               ),
             ],
           ),
     );
   }
 
-  Future<void> _showExperienceDialog() async {
-    final experienceStr = _userData['experience'].toString();
-    final controller = TextEditingController(
-      text: experienceStr.replaceAll(' years', ''),
-    );
-    return showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Update Experience'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Enter your years of experience:',
-                  style: TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(
-                    labelText: 'Years of Experience',
-                    border: OutlineInputBorder(),
-                    suffixText: 'years',
+  Future<void> _showProfessionDialog() async {
+    await _showConfirmationDialog(
+      title: 'Update Profession',
+      message:
+          'You are about to change your profession. This will require you to verify your knowledge in the new field.',
+      onConfirm: () async {
+        String? selectedProfession = _userData['profession'];
+        showDialog(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                title: Text(
+                  'Select New Profession',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Changing your profession will require verification. Please select your new profession:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      value: selectedProfession,
+                      dropdownColor: Theme.of(context).colorScheme.surface,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                        fontSize: 14,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Profession',
+                        labelStyle: TextStyle(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.work_outline,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 16,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withOpacity(0.3),
+                          ),
+                        ),
+                      ),
+                      items:
+                          Profession.techProfessions.map((profession) {
+                            return DropdownMenuItem<String>(
+                              value: profession.name,
+                              child: Row(
+                                children: [
+                                  Text(profession.icon),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      profession.name,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color:
+                                            Theme.of(
+                                              context,
+                                            ).colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                      onChanged: (value) {
+                        selectedProfession = value;
+                      },
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  FilledButton(
+                    onPressed: () {
+                      if (selectedProfession != null &&
+                          selectedProfession!.isNotEmpty) {
+                        // Close the dialog
+                        Navigator.pop(context);
+                        // Start verification process
+                        _startProfessionVerification(selectedProfession);
+                      }
+                    },
+                    child: const Text('Update'),
+                  ),
+                ],
               ),
-              FilledButton(
-                onPressed: () {
-                  if (controller.text.isNotEmpty) {
-                    setState(() {
-                      // Store as number in database but display as string with 'years'
-                      final yearsNum = int.tryParse(controller.text) ?? 0;
-                      _userData['experience'] = '$yearsNum years';
+        );
+      },
+    );
+  }
 
-                      // Update Firestore (the actual value stored is a number)
-                      _firestore
-                          .collection('users')
-                          .doc(_auth.currentUser!.uid)
-                          .update({'experience': yearsNum});
-                    });
-                    Navigator.pop(context);
-                  }
-                },
-                child: const Text('Update'),
+  Future<void> _showExperienceDialog() async {
+    await _showConfirmationDialog(
+      title: 'Update Experience',
+      message:
+          'You are about to change your years of experience. This will require you to verify your expertise level.',
+      onConfirm: () async {
+        final experienceStr = _userData['experience'].toString();
+        final controller = TextEditingController(
+          text: experienceStr.replaceAll(' years', ''),
+        );
+        showDialog(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                title: Text(
+                  'Enter New Experience',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Changing your years of experience will require verification. Enter your new experience:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: controller,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Years of Experience',
+                        labelStyle: TextStyle(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                        border: OutlineInputBorder(),
+                        suffixText: 'years',
+                        suffixStyle: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () {
+                      if (controller.text.isNotEmpty) {
+                        final newExperience =
+                            int.tryParse(controller.text) ?? 0;
+                        // Close the dialog
+                        Navigator.pop(context);
+                        // Start verification process
+                        _startProfessionVerification(
+                          _userData['profession'],
+                          newExperience,
+                        );
+                      }
+                    },
+                    child: const Text('Update'),
+                  ),
+                ],
               ),
-            ],
-          ),
+        );
+      },
+    );
+  }
+
+  void _startProfessionVerification([
+    String? newProfession,
+    int? newExperience,
+  ]) {
+    // Navigate to quiz page
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => QuizPage(
+              profession: newProfession ?? _userData['profession'],
+              experience:
+                  newExperience ??
+                  int.tryParse(
+                    _userData['experience'].toString().replaceAll(' years', ''),
+                  ) ??
+                  1,
+              onQuizComplete:
+                  (isPassed) => _handleQuizComplete(
+                    isPassed,
+                    newProfession,
+                    newExperience,
+                  ),
+            ),
+      ),
+    );
+  }
+
+  void _handleQuizComplete(
+    bool isPassed,
+    String? newProfession,
+    int? newExperience,
+  ) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => QuizResultPage(
+              isPassed: isPassed,
+              onContinue: () async {
+                if (isPassed) {
+                  // Update the values in Firestore and local state
+                  final updates = <String, dynamic>{};
+                  if (newProfession != null) {
+                    updates['profession'] = newProfession;
+                  }
+                  if (newExperience != null) {
+                    updates['experience'] = newExperience;
+                  }
+
+                  try {
+                    await _firestore
+                        .collection('users')
+                        .doc(_auth.currentUser!.uid)
+                        .update(updates);
+
+                    setState(() {
+                      if (newProfession != null) {
+                        _userData['profession'] = newProfession;
+                      }
+                      if (newExperience != null) {
+                        _userData['experience'] = '$newExperience years';
+                      }
+                    });
+
+                    if (mounted) {
+                      SnackbarService.showSuccess(
+                        context,
+                        message: 'Profile updated successfully',
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      SnackbarService.showError(
+                        context,
+                        message: 'Failed to update profile: $e',
+                      );
+                    }
+                  }
+                }
+              },
+              onRetake: () {
+                // Pop result page and retake the quiz
+                Navigator.of(context).pop();
+                _startProfessionVerification(newProfession, newExperience);
+              },
+              onLowerExperience: () {
+                // Pop both pages and reduce experience level
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
+                if (newExperience != null && newExperience > 1) {
+                  _startProfessionVerification(
+                    newProfession,
+                    newExperience - 1,
+                  );
+                } else {
+                  SnackbarService.showInfo(
+                    context,
+                    message: 'Experience level already at minimum',
+                  );
+                }
+              },
+            ),
+      ),
     );
   }
 
@@ -800,12 +1081,19 @@ class _UserProfilePageState extends State<UserProfilePage> {
                             _isEditing
                                 ? TextFormField(
                                   controller: _controllers['name'],
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 28,
                                     fontWeight: FontWeight.bold,
+                                    color:
+                                        Theme.of(context).colorScheme.onSurface,
                                   ),
                                   decoration: InputDecoration(
                                     hintText: 'Enter your name',
+                                    hintStyle: TextStyle(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface.withOpacity(0.7),
+                                    ),
                                     border: InputBorder.none,
                                     suffixIcon: Icon(
                                       Icons.edit,
@@ -917,11 +1205,16 @@ class _UserProfilePageState extends State<UserProfilePage> {
                                   style: TextStyle(
                                     fontSize: 16,
                                     color:
-                                        Theme.of(context).colorScheme.secondary,
+                                        Theme.of(context).colorScheme.onSurface,
                                     height: 1.6,
                                   ),
                                   decoration: InputDecoration(
                                     hintText: 'Tell us about yourself',
+                                    hintStyle: TextStyle(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface.withOpacity(0.7),
+                                    ),
                                     border: const OutlineInputBorder(),
                                     suffixIcon: Icon(
                                       Icons.edit,
@@ -1032,9 +1325,22 @@ class _UserProfilePageState extends State<UserProfilePage> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: controller,
-                  decoration: const InputDecoration(
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  decoration: InputDecoration(
                     labelText: 'Skill',
-                    border: OutlineInputBorder(),
+                    labelStyle: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                    hintStyle: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
               ],

@@ -301,22 +301,25 @@ class _QuizPageState extends State<QuizPage> {
                   children: [
                     Icon(Icons.error_outline, size: 60, color: Colors.orange),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'Unable to load questions',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onBackground,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'There was a problem loading questions for your profession',
                       textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onBackground,
+                      ),
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
                       onPressed: () {
-                        // Go back
                         Navigator.of(context).pop();
                       },
                       child: const Text('Go Back'),
@@ -324,175 +327,140 @@ class _QuizPageState extends State<QuizPage> {
                   ],
                 ),
               )
-              : _buildQuizContent(),
-    );
-  }
-
-  Widget _buildQuizContent() {
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildProgressBar(),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  'Score: $_correctAnswers/${_currentQuestionIndex + (_isAnswerChecked ? 1 : 0)}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              _buildTimer(),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Card(
-            elevation: 4,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                _questions[_currentQuestionIndex].question,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _questions[_currentQuestionIndex].options.length,
-              itemBuilder: (context, index) {
-                final option = _questions[_currentQuestionIndex].options[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12.0),
-                  child: Material(
-                    color: _getOptionColor(option),
-                    borderRadius: BorderRadius.circular(12),
-                    elevation: option == _selectedAnswer ? 4 : 2,
-                    child: InkWell(
-                      onTap:
-                          _isAnswerChecked || _isTimeUp
-                              ? null
-                              : () => _selectAnswer(option),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 16.0,
-                          horizontal: 16.0,
-                        ),
-                        child: Row(
-                          children: [
-                            Text(
-                              '${String.fromCharCode(65 + index)}.',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                option,
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                            ),
-                            if (_isAnswerChecked || _isTimeUp)
-                              Icon(
-                                option ==
-                                        _questions[_currentQuestionIndex].answer
-                                    ? Icons.check_circle
-                                    : (option == _selectedAnswer
-                                        ? Icons.cancel
-                                        : null),
-                                color:
-                                    option ==
-                                            _questions[_currentQuestionIndex]
-                                                .answer
-                                        ? Colors.green
-                                        : Colors.red,
-                              ),
-                          ],
-                        ),
+              : Container(
+                color: Theme.of(context).colorScheme.background,
+                child: Column(
+                  children: [
+                    // Timer indicator
+                    LinearProgressIndicator(
+                      value: _timeLeft / 5,
+                      backgroundColor:
+                          Theme.of(context).colorScheme.surfaceVariant,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        _timeLeft > 2 ? Colors.green : Colors.orange,
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+                    Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Question ${_currentQuestionIndex + 1} of ${_questions.length}',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onBackground,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            _questions[_currentQuestionIndex].question,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onBackground,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount:
+                            _questions[_currentQuestionIndex].options.length,
+                        itemBuilder: (context, index) {
+                          final option =
+                              _questions[_currentQuestionIndex].options[index];
+                          final isSelected = _selectedAnswer == option;
+                          final isCorrect =
+                              option ==
+                              _questions[_currentQuestionIndex].answer;
+                          final showResult = _isAnswerChecked || _isTimeUp;
 
-  Color _getOptionColor(String option) {
-    if (!_isAnswerChecked && !_isTimeUp) {
-      return option == _selectedAnswer
-          ? Colors.blue.shade100
-          : Colors.grey.shade100;
-    }
-
-    final correctAnswer = _questions[_currentQuestionIndex].answer;
-
-    if (option == correctAnswer) {
-      return Colors.green.shade100;
-    } else if (option == _selectedAnswer) {
-      return Colors.red.shade100;
-    } else {
-      return Colors.grey.shade100;
-    }
-  }
-
-  Widget _buildProgressBar() {
-    return Row(
-      children: [
-        Text('${_currentQuestionIndex + 1}/${_questions.length}'),
-        const SizedBox(width: 8),
-        Expanded(
-          child: LinearProgressIndicator(
-            value: (_currentQuestionIndex + 1) / _questions.length,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              Theme.of(context).colorScheme.primary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTimer() {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        SizedBox(
-          height: 50,
-          width: 50,
-          child: CircularProgressIndicator(
-            value: _timeLeft / 5,
-            backgroundColor: Colors.grey[300],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              _timeLeft > 2 ? Colors.green : Colors.red,
-            ),
-            strokeWidth: 5,
-          ),
-        ),
-        Text(
-          '$_timeLeft',
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-      ],
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: Material(
+                              color:
+                                  showResult
+                                      ? isCorrect
+                                          ? Colors.green.withOpacity(0.2)
+                                          : isSelected
+                                          ? Colors.red.withOpacity(0.2)
+                                          : Theme.of(
+                                            context,
+                                          ).colorScheme.surfaceVariant
+                                      : isSelected
+                                      ? Theme.of(
+                                        context,
+                                      ).colorScheme.primaryContainer
+                                      : Theme.of(
+                                        context,
+                                      ).colorScheme.surfaceVariant,
+                              borderRadius: BorderRadius.circular(12),
+                              child: InkWell(
+                                onTap: () {
+                                  if (!_isAnswerChecked && !_isTimeUp) {
+                                    _selectAnswer(option);
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16.0,
+                                    horizontal: 16.0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        '${String.fromCharCode(65 + index)}.',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color:
+                                              Theme.of(
+                                                context,
+                                              ).colorScheme.onBackground,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          option,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color:
+                                                Theme.of(
+                                                  context,
+                                                ).colorScheme.onBackground,
+                                          ),
+                                        ),
+                                      ),
+                                      if (showResult)
+                                        Icon(
+                                          isCorrect
+                                              ? Icons.check_circle
+                                              : (isSelected
+                                                  ? Icons.cancel
+                                                  : null),
+                                          color:
+                                              isCorrect
+                                                  ? Colors.green
+                                                  : Colors.red,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
     );
   }
 }

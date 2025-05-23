@@ -17,6 +17,8 @@ import '../models/profession.dart';
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
 
+  static const String routeName = 'signup_page';
+
   @override
   State<SignupPage> createState() => _SignupPageState();
 }
@@ -313,10 +315,11 @@ class _SignupPageState extends State<SignupPage> {
   }
 
   void _startProfessionVerification() {
-    // Navigate to quiz page
+    // Navigate to quiz page with a name for the route
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'quiz_page'),
         builder:
             (context) => QuizPage(
               profession: _professionController.text,
@@ -335,10 +338,15 @@ class _SignupPageState extends State<SignupPage> {
             (context) => QuizResultPage(
               isPassed: isPassed,
               onContinue: () {
-                // Return to signup flow and continue
-                Navigator.of(context).pop(); // Pop the result page
-                Navigator.of(context).pop(); // Pop the quiz page
-                _nextPage(); // Move to next step in signup
+                if (isPassed) {
+                  // Pop all quiz-related pages and return to signup flow
+                  Navigator.of(context).popUntil(
+                    (route) =>
+                        route.settings.name == 'signup_page' || route.isFirst,
+                  );
+                  // Move to next step in signup
+                  _nextPage();
+                }
               },
               onRetake: () {
                 // Pop result page and retake the quiz
@@ -446,7 +454,7 @@ class _SignupPageState extends State<SignupPage> {
 
   Widget _buildAuthPage() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Form(
         key: _authFormKey,
         child: Column(
@@ -455,31 +463,31 @@ class _SignupPageState extends State<SignupPage> {
             Center(
               child: Image.asset(
                 'assets/icon/splash_icon.png',
-                width: 150,
-                height: 150,
+                width: 250,
+                height: 250,
                 color: Theme.of(context).colorScheme.primary,
               ),
             ),
 
+            // Text(
+            //   'Create Account',
+            //   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            //     fontWeight: FontWeight.bold,
+            //     color: Theme.of(context).colorScheme.primary,
+            //   ),
+            //   textAlign: TextAlign.center,
+            // ),
             Text(
-              'Create Account',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Sign up to get started',
+              'Create Account • Sign up to get started',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: Theme.of(context).colorScheme.secondary,
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 10),
             TextFormField(
               controller: _nameController,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               decoration: InputDecoration(
                 labelText: 'Full Name',
                 hintText: 'Enter your full name',
@@ -498,6 +506,7 @@ class _SignupPageState extends State<SignupPage> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _emailController,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               keyboardType: TextInputType.emailAddress,
               decoration: InputDecoration(
                 labelText: 'Email',
@@ -522,6 +531,7 @@ class _SignupPageState extends State<SignupPage> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _passwordController,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               obscureText: !_isPasswordVisible,
               decoration: InputDecoration(
                 labelText: 'Password',
@@ -556,6 +566,7 @@ class _SignupPageState extends State<SignupPage> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _confirmPasswordController,
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               obscureText: !_isConfirmPasswordVisible,
               decoration: InputDecoration(
                 labelText: 'Confirm Password',
@@ -717,11 +728,16 @@ class _SignupPageState extends State<SignupPage> {
             ),
             const SizedBox(height: 30),
             DropdownButtonFormField<String>(
+              isExpanded: true,
               decoration: InputDecoration(
                 labelText: 'Profession',
                 prefixIcon: const Icon(Icons.work_outline),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 16,
                 ),
               ),
               hint: const Text('Select your profession'),
@@ -743,7 +759,13 @@ class _SignupPageState extends State<SignupPage> {
                         children: [
                           Text(profession.icon),
                           const SizedBox(width: 8),
-                          Text(profession.name),
+                          Expanded(
+                            child: Text(
+                              profession.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ),
                         ],
                       ),
                     );
@@ -851,9 +873,22 @@ class _SignupPageState extends State<SignupPage> {
               Expanded(
                 child: TextField(
                   controller: skillController,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Enter skill',
+                    labelStyle: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.7),
+                    ),
                     hintText: 'e.g. Project Management',
+                    hintStyle: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.7),
+                    ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),

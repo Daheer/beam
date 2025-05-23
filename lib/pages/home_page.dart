@@ -80,6 +80,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool isBeaming = false;
   StreamSubscription? _callSubscription;
   StreamSubscription<QuerySnapshot>? _connectionRequestsSubscription;
+  StreamSubscription<QuerySnapshot>? _nearbyUsersSubscription;
   int _pendingRequestsCount = 0;
 
   @override
@@ -95,6 +96,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _listenForIncomingCalls();
     _setupInterestRequestListener();
     _setupConnectionRequestListener();
+    _setupNearbyUsersListener();
     _loadPendingRequestsCount();
 
     // Check for any pending interest requests when the app starts
@@ -118,6 +120,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _incomingCallsSubscription?.cancel();
     _interestRequestsSubscription?.cancel();
     _connectionRequestsSubscription?.cancel();
+    _nearbyUsersSubscription?.cancel();
 
     // Remove app lifecycle observer
     WidgetsBinding.instance.removeObserver(this);
@@ -667,6 +670,59 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         StackTrace.current,
       );
     }
+  }
+
+  // Set up real-time listener for nearby users
+  void _setupNearbyUsersListener() {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+
+    // Listen for users who are beaming
+    _nearbyUsersSubscription = _firestore
+        .collection('users')
+        .where('isBeaming', isEqualTo: true)
+        .snapshots()
+        .listen(
+          (snapshot) async {
+            // Don't update if the widget is disposed
+            if (!mounted) return;
+
+            try {
+              // First ensure location is up-to-date
+              await _userService.updateUserLocation();
+
+              // Then fetch nearby users
+              final nearbyUsers = await _userService.getNearbyUsers(
+                radiusInKm: 100.0,
+              );
+
+              if (mounted) {
+                setState(() {
+                  _nearbyUsers = nearbyUsers;
+                  _isLoading = false;
+                });
+              }
+            } catch (e) {
+              LogService.e(
+                'Error updating nearby users',
+                e,
+                StackTrace.current,
+              );
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                });
+              }
+            }
+          },
+          onError: (error) {
+            LogService.e(
+              'Error in nearby users listener',
+              error,
+              StackTrace.current,
+            );
+          },
+        );
   }
 
   @override
