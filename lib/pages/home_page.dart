@@ -744,7 +744,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                 );
               },
-              icon: Icon(Icons.notifications_outlined),
+              icon: Icon(Icons.connect_without_contact_outlined),
               alignment: Alignment.topLeft,
               color: Theme.of(context).colorScheme.primary,
             ),
