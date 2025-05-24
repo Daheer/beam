@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../widgets/beam_blob.dart';
 import '../widgets/nearby_professional_card.dart';
+import '../widgets/platform_loading_indicator.dart';
 import '../services/user_service.dart';
 import '../services/call_service.dart';
 import '../utils/notification_payload_handler.dart';
@@ -791,163 +792,159 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadNearbyUsers,
-        child: SafeArea(
-          bottom: false,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Spacer(flex: 1),
-              BeamBlob(beaming: isBeaming, onBeamToggle: _toggleBeamingStatus),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Nearby Professionals',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Spacer(flex: 1),
+            BeamBlob(beaming: isBeaming, onBeamToggle: _toggleBeamingStatus),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Nearby Professionals',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
-                    if (!_isLoading && _nearbyUsers.isNotEmpty)
-                      TextButton(
-                        onPressed: () {
-                          try {
-                            // Create a deep copy of the professionals list to avoid reference issues
-                            final List<Map<String, dynamic>> professionalsCopy =
-                                [];
+                  ),
+                  if (!_isLoading && _nearbyUsers.isNotEmpty)
+                    TextButton(
+                      onPressed: () {
+                        try {
+                          // Create a deep copy of the professionals list to avoid reference issues
+                          final List<Map<String, dynamic>> professionalsCopy =
+                              [];
 
-                            // Validate each professional item before adding to the copy
-                            for (var prof in _nearbyUsers) {
-                              // Ensure all required fields are present
-                              final validatedProf = <String, dynamic>{
-                                'name': prof['name'] ?? 'Unknown',
-                                'profession': prof['profession'] ?? '',
-                                'experience':
-                                    prof['experience'] ?? 'Not specified',
-                                'distance': prof['distance'] ?? 'Unknown',
-                                'image':
-                                    prof['image'] ??
-                                    'https://doodleipsum.com/700?i=6bff1692e77c36e5effde3d6f48fab6e',
-                              };
+                          // Validate each professional item before adding to the copy
+                          for (var prof in _nearbyUsers) {
+                            // Ensure all required fields are present
+                            final validatedProf = <String, dynamic>{
+                              'name': prof['name'] ?? 'Unknown',
+                              'profession': prof['profession'] ?? '',
+                              'experience':
+                                  prof['experience'] ?? 'Not specified',
+                              'distance': prof['distance'] ?? 'Unknown',
+                              'image':
+                                  prof['image'] ??
+                                  'https://doodleipsum.com/700?i=6bff1692e77c36e5effde3d6f48fab6e',
+                            };
 
-                              // Add other fields from the original
-                              prof.forEach((key, value) {
-                                if (!validatedProf.containsKey(key)) {
-                                  validatedProf[key] = value;
-                                }
-                              });
+                            // Add other fields from the original
+                            prof.forEach((key, value) {
+                              if (!validatedProf.containsKey(key)) {
+                                validatedProf[key] = value;
+                              }
+                            });
 
-                              professionalsCopy.add(validatedProf);
-                            }
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (context) => AllProfessionals(
-                                      professionals: professionalsCopy,
-                                    ),
-                              ),
-                            );
-                          } catch (e) {
-                            SnackbarService.showError(
-                              context,
-                              message: 'Error loading professionals list: $e',
-                            );
+                            professionalsCopy.add(validatedProf);
                           }
-                        },
-                        child: Row(
-                          children: [
-                            Text(
-                              'See All',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Theme.of(context).colorScheme.secondary,
-                              ),
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => AllProfessionals(
+                                    professionals: professionalsCopy,
+                                  ),
                             ),
-                            Icon(
-                              Icons.chevron_right,
-                              size: 20,
+                          );
+                        } catch (e) {
+                          SnackbarService.showError(
+                            context,
+                            message: 'Error loading professionals list: $e',
+                          );
+                        }
+                      },
+                      child: Row(
+                        children: [
+                          Text(
+                            'See All',
+                            style: TextStyle(
+                              fontSize: 14,
                               color: Theme.of(context).colorScheme.secondary,
                             ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              if (_isLoading)
-                Expanded(child: Center(child: CircularProgressIndicator()))
-              else if (_nearbyUsers.isNotEmpty)
-                Expanded(
-                  child: ListView.builder(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).padding.bottom,
-                    ),
-                    itemCount: _nearbyUsers.length,
-                    itemBuilder: (context, index) {
-                      final professional = _nearbyUsers[index];
-                      return NearbyProfessionalCard(info: professional);
-                    },
-                  ),
-                )
-              else
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: constraints.maxHeight,
                           ),
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 24.0,
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.people_outline_rounded,
-                                    size: 64,
+                          Icon(
+                            Icons.chevron_right,
+                            size: 20,
+                            color: Theme.of(context).colorScheme.secondary,
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (_isLoading)
+              Expanded(
+                child: Center(
+                  child: PlatformLoadingIndicator(
+                    size: 20.0,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              )
+            else if (_nearbyUsers.isNotEmpty)
+              Expanded(
+                child: ListView.builder(
+                  padding: EdgeInsets.only(
+                    bottom: MediaQuery.of(context).padding.bottom,
+                  ),
+                  itemCount: _nearbyUsers.length,
+                  itemBuilder: (context, index) {
+                    final professional = _nearbyUsers[index];
+                    return NearbyProfessionalCard(info: professional);
+                  },
+                ),
+              )
+            else
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
+                        ),
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.people_outline_rounded,
+                                  size: 64,
+                                  color:
+                                      Theme.of(context).colorScheme.secondary,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No professionals found nearby',
+                                  style: TextStyle(
+                                    fontSize: 16,
                                     color:
                                         Theme.of(context).colorScheme.secondary,
                                   ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No professionals found nearby',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color:
-                                          Theme.of(
-                                            context,
-                                          ).colorScheme.secondary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  TextButton(
-                                    onPressed: _loadNearbyUsers,
-                                    child: const Text('Refresh'),
-                                  ),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(height: 16),
+                              ],
                             ),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );

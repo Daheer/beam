@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/quiz_service.dart';
 import '../services/snackbar_service.dart';
+import '../widgets/platform_loading_indicator.dart';
 
 class QuizPage extends StatefulWidget {
   final String profession;
@@ -284,13 +285,15 @@ class _QuizPageState extends State<QuizPage> {
       ),
       body:
           _isLoading
-              ? const Center(
+              ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Loading quiz questions...'),
+                    PlatformLoadingIndicator(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('Loading quiz...'),
                   ],
                 ),
               )

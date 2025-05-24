@@ -13,6 +13,7 @@ import '../services/notification_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../services/connection_request_service.dart';
 import '../services/log_service.dart';
+import '../widgets/platform_loading_indicator.dart';
 
 class ProfessionalProfile extends StatefulWidget {
   final Map<String, dynamic> professional;
@@ -553,7 +554,11 @@ class _ProfessionalProfileState extends State<ProfessionalProfile> {
 
   Widget _buildConnectionStatus() {
     if (_isSendingRequest) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: PlatformLoadingIndicator(
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      );
     }
 
     if (!_hasExistingRequest) {

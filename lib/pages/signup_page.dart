@@ -13,6 +13,7 @@ import 'dart:io';
 import '../services/upload_service.dart';
 import '../services/snackbar_service.dart';
 import '../models/profession.dart';
+import '../widgets/platform_loading_indicator.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -618,13 +619,8 @@ class _SignupPageState extends State<SignupPage> {
               ),
               child:
                   _isLoading
-                      ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
+                      ? PlatformLoadingIndicator(
+                        color: Theme.of(context).colorScheme.onPrimary,
                       )
                       : const Text(
                         'CONTINUE',
@@ -1070,13 +1066,8 @@ class _SignupPageState extends State<SignupPage> {
             ),
             child:
                 _isLoading
-                    ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
+                    ? PlatformLoadingIndicator(
+                      color: Theme.of(context).colorScheme.onPrimary,
                     )
                     : const Text(
                       'COMPLETE SIGNUP',

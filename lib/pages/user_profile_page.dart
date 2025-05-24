@@ -16,6 +16,7 @@ import '../services/snackbar_service.dart';
 import '../pages/quiz_page.dart';
 import '../pages/quiz_result_page.dart';
 import '../models/profession.dart';
+import '../widgets/platform_loading_indicator.dart';
 
 class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
@@ -908,14 +909,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
     return Scaffold(
       body:
           _isLoading
-              ? const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Loading profile...'),
-                  ],
+              ? Center(
+                child: PlatformLoadingIndicator(
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               )
               : _errorMessage != null

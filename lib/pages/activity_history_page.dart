@@ -11,6 +11,7 @@ import 'professional_profile_page.dart';
 import 'voice_call_page.dart';
 import '../services/call_service.dart';
 import 'package:geolocator/geolocator.dart';
+import '../widgets/platform_loading_indicator.dart';
 
 class ActivityHistoryPage extends StatefulWidget {
   final String? notificationRequestId;
@@ -47,6 +48,10 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage>
     // Listen for changes to reload activities
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
+        setState(() {
+          _isLoading = true; // Set loading state when switching tabs
+          _activities = []; // Clear current activities
+        });
         _setupListeners();
       }
     });
@@ -565,11 +570,17 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage>
 
   Widget _buildActivityItem(Map<String, dynamic> activity) {
     if (_isLoading || activity == null) {
-      return const Card(
+      return Card(
         margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: ListTile(
           leading: CircleAvatar(
-            child: CircularProgressIndicator(strokeWidth: 2),
+            child: Center(
+              child: PlatformLoadingIndicator(
+                size: 10.0,
+                strokeWidth: 2.0,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
           ),
           title: LinearProgressIndicator(),
         ),
@@ -605,10 +616,16 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage>
 
     Widget buildTrailing() {
       if (isProcessing) {
-        return const SizedBox(
+        return SizedBox(
           width: 24,
           height: 24,
-          child: CircularProgressIndicator(strokeWidth: 2),
+          child: Center(
+            child: PlatformLoadingIndicator(
+              size: 10.0,
+              strokeWidth: 2.0,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
         );
       }
 
@@ -1034,38 +1051,38 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage>
         controller: _tabController,
         children: [
           // Connection requests tab
-          RefreshIndicator(
-            onRefresh: _loadActivities,
-            child:
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _activities.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.builder(
-                      itemCount: _activities.length,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemBuilder:
-                          (context, index) =>
-                              _buildActivityItem(_activities[index]),
-                    ),
-          ),
+          _isLoading
+              ? Center(
+                child: PlatformLoadingIndicator(
+                  size: 20.0,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              )
+              : _activities.isEmpty
+              ? _buildEmptyState()
+              : ListView.builder(
+                itemCount: _activities.length,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemBuilder:
+                    (context, index) => _buildActivityItem(_activities[index]),
+              ),
 
           // Connections tab
-          RefreshIndicator(
-            onRefresh: _loadActivities,
-            child:
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _activities.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.builder(
-                      itemCount: _activities.length,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemBuilder:
-                          (context, index) =>
-                              _buildActivityItem(_activities[index]),
-                    ),
-          ),
+          _isLoading
+              ? Center(
+                child: PlatformLoadingIndicator(
+                  size: 20.0,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              )
+              : _activities.isEmpty
+              ? _buildEmptyState()
+              : ListView.builder(
+                itemCount: _activities.length,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemBuilder:
+                    (context, index) => _buildActivityItem(_activities[index]),
+              ),
         ],
       ),
     );

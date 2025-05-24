@@ -4,6 +4,7 @@ import '../services/log_service.dart';
 import 'signup_page.dart';
 import 'home_page.dart';
 import 'email_verification_page.dart';
+import '../widgets/platform_loading_indicator.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -235,13 +236,8 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   child:
                       _isLoading
-                          ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
+                          ? PlatformLoadingIndicator(
+                            color: Theme.of(context).colorScheme.onPrimary,
                           )
                           : const Text(
                             'LOGIN',
